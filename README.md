@@ -60,8 +60,155 @@ $ curl -sSL https://bit.ly/2ysbOFE | bash -s
 ## 테스트 네트워크 실행
  
  테스트 네트워크 불러오기
+ 
  ```
  cd ~/go/src/github.com/ljwoon94/fabric-samples/test-network
  ```
 
 ![image](https://user-images.githubusercontent.com/68358404/121637686-bee4d280-cac4-11eb-8dee-31650f9fcb3c.png)
+
+경로에 파일 확인 후 스크립트 실행
+
+```
+ls
+./network.sh up
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121637975-3286df80-cac5-11eb-95b8-27ed6e0c2eed.png)
+
+성공하면 두개의 피어노드, 하나의 오더노드로 구성된 패크릭 네트워크 생성
+
+![image](https://user-images.githubusercontent.com/68358404/121638069-55b18f00-cac5-11eb-9411-3d2e900d11a7.png)
+
+네트워크 구성 요소를 다시 보고 싶으면 
+
+```
+docker ps -a
+```
+
+ 피어 는 모든 패브릭 네트워크의 기본 구성 요소이다. 피어는 블록 체인 원장을 저장하고 원장에 커밋되기 전에 거래를 검증한다. 피어는 블록 체인 원장에서 자산을 관리하는데 사용되는 비즈니스 로직이 포함된 스마트 계약을 실행한다.
+ 
+ 네트워크의 모든 피어는 조직에 속해야한다. 테스트 네트워크에서 각 조직(peer0.org1.example.com, peer0.org2.example.com)은 각각 하나의 피어를 운영한다.
+ 
+ 오더 노드는 클라이언트로부터 보증된 트랜잭션을 수신 한 후 트랜잭션 순서에 대한 합의에 도달 한 다음 블록에 추가한다. 그런 다음 블록은 블록 체인 원장에 블록을 추가하는 피어 노드에 배포된다.
+
+
+------------------------------------------
+
+## 채널 만들기
+
+ 채널은 특정 네트워크 구성원 간의 개인 통신 계층이다. 채널은 채널에 초대 된 조직에서만 사용할 수 있으며 네트워크의 다른 구성원에게는 표시되지 않습다. 각 채널에는 별도의 블록 체인 원장이 있다. 초대를받은 조직은 피어를 채널에 "참여"하여 채널 원장을 저장하고 채널에서 트랜잭션을 검증한다.
+ 
+ ./network.sh를 사용해 Org1 과 Org2 사이의 채널 만들기.
+ 
+ createChannel -c <채널명>
+
+```
+./network.sh createChannel -c mychannel
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121638874-a5dd2100-cac6-11eb-966e-67f30ec0cd2b.png)
+
+-----------------------------------------
+
+## 채널에서 체인코드 시작
+
+ 채널을 만든 후 스마트 계약 을 사용하여 채널 원장과 상호 작용할 수 있다. 스마트 계약(체인코드)는 블록 체인 원장의 자산을 관리하는 비즈니스 로직이 포함되어 있다. 네트워크 구성원이 실행하는 애플리케이션은 스마트 계약(체인코드)을 호출하여 원장에 자산을 생성하고 해당 자산을 변경 및 전송할 수 있다. 애플리케이션은 원장의 데이터를 읽기 위해 스마트 계약을 쿼리한다.
+ 
+ Fabric에서 스마트 계약은 체인 코드라고하는 패키지로 네트워크에 배포된다. 체인 코드는 조직의 피어에 설치되고 채널에 배포되어 트랜잭션을 승인하고 블록 체인 원장과 상호 작용하는 데 사용할 수 있다. 체인 코드를 채널에 배포하려면 채널 구성원이 체인 코드 거버넌스를 설정하는 체인 코드 정의에 동의해야한다. 필요한 수의 조직이 동의하면 체인 코드 정의를 채널에 커밋 할 수 있으며 체인 코드를 사용할 준비가 된 것이다.
+ 
+ 이미 승인된 체인코드를 채널에 배포 해보기
+ deployCC 체인코드 배포하는 명령어, -ccn 체인코드 네임, -ccp 체인코드 경로 , -ccl 체인코드 언어
+ 채널을 지정하지 않으면 기본 mychannel로 지정된다.
+ 
+```
+./network.sh deployCC -ccn basic -ccp ../asset-transfer-basic/chaincode-go -ccl go
+```
+
+--------------------------------------
+
+## 네트워크와 상호작용
+
+ 테스트 네트워크를 가져온 후 peer CLI를 사용하여 네트워크와 상호작용 할 수 있다. peer CLI는 배포 스마트 계약, 업데이트 채널을 호출하거나, 설치 및 새로운 스마트 계약을 배포 할 수 있다.
+ 
+ test-network 경로에 peer CLI를 실행 하는데 필요한, 환경변수를 등록한다.
+ export PATH=${PWD}/../bin:$PATH 는 해당 바이너리 경로
+ export FABRIC_CFG_PATH=$PWD/../config/ 는 core.yaml를 가리킨다.
+ 
+ ```
+export PATH=${PWD}/../bin:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+ ```
+ 
+  peer CLI를 Org1로 작동 할 수 있는 환경변수 설정
+  CORE_PEER_TLS_ROOTCERT_FILE 및 CORE_PEER_MSPCONFIGPATH 환경변수에는 Org1의 암호화 소재를 가리는 organizations폴더에 있다.
+  
+ ```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+ ```
+ 
+ ![image](https://user-images.githubusercontent.com/68358404/121640140-821ada80-cac8-11eb-92c5-852930203ae7.png)
+
+다음 명령을 실행하여 자산으로 원장을 초기화
+ 
+ ```
+ peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" -C mychannel -n basic --peerAddresses localhost:7051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" --peerAddresses localhost:9051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -c '{"function":"InitLedger","Args":[]}'
+
+ ```
+
+ 출력 
+ 
+ ![image](https://user-images.githubusercontent.com/68358404/121640237-a24a9980-cac8-11eb-9c8b-b697d66da84d.png)
+
+ 다음 명령을 실행하여 채널 원장에 추가 된 자산 목록을 가져온다.
+ 
+```
+peer chaincode query -C mychannel -n basic -c '{"Args":["GetAllAssets"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121640418-db830980-cac8-11eb-8321-f9c470043f96.png)
+
+ 체인 코드는 네트워크 구성원이 원장의 자산을 전송하거나 변경하려고 할 때 호출된다. 다음 명령을 사용하여 자산 전송 (기본) 체인 코드를 호출하여 원장의 자산 소유자를 변경해본다.
+ 
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" -C mychannel -n basic --peerAddresses localhost:7051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" --peerAddresses localhost:9051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -c '{"function":"TransferAsset","Args":["asset6","Christopher"]}' 
+```
+
+ 출력
+
+![image](https://user-images.githubusercontent.com/68358404/121640597-171dd380-cac9-11eb-9e4c-411f6565d292.png)
+
+ 자산 전송에 대한 보증 정책 체인코드(basic)가 Org1 및 Org2에 의해 서명되는 트랜잭션을 필요로 한다. --peerAddresses 와 --tlsRootCertFiles를 사용하여 각 피어(peer0.org1.example.com, peer0.org2.example.com) 에 대한 TLS 인증서도 참조해야한다.  
+ 
+ Org2로 작동하도록 다음 환경 변수를 설정
+ 
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051 
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121641213-dd010180-cac9-11eb-9cec-4287f4adb887.png)
+
+
+이제 자산 전송 체인코드(basic)를 쿼리 할 수 있다.
+
+```
+peer chaincode query -C mychannel -n basic -c '{"Args":["ReadAsset","asset6"]}'
+```
+
+ 출력
+
+![image](https://user-images.githubusercontent.com/68358404/121641251-ea1df080-cac9-11eb-974d-1bd0a54e4db0.png)
+
+## 네트워크 중단
+
+```
+./network.sh down
+```
