@@ -33,4 +33,26 @@ Endorsing peer들이 시뮬레이션을 통해 적절하다고 판단한 트랜�
  하이퍼레저 패브릭에서는 CA노드를 통해 1차적으로 사용자의 서명과 권한 등을 확인하고, peer를 통해 원장에 기록되기 전에 보증 정책(Endorsement Policy)을 준수하는지 확인하는 과정을 거친다. 보증 정책은 보통 해당 트랜잭션이 지정된 peer들의 허가를 받아야 한다는 내용인데, 원장을 공유하는 채널별로 참여자들은 다양한 방식으로 보증 정책을 설정할 수 있다.
  
  
+--------------------------------------------------------
 
+# 튜토리얼
+## 1. 패브릭 테스트 네트워크 사용
+
+하이퍼레저 패브릭에서 제공하는 예제를 이용해 네트워크를 사용해본다.
+시작하기전 필요한 사전 작업으론
+WSL2 설치 (Ubuntu 20.04.2 LTS)
+Docker Desktop 최신버전
+go, jq, curl ,git, nvm 을 우분투에다 설치
+
+fabric 과 fabric samples 설치
+우분투에 경로 생성
+```
+$ mkdir -p $HOME/go/src/github.com/<your_github_userid>
+$ cd $HOME/go/src/github.com/<your_github_userid>
+``` 
+
+curl로 패브릭 샘플 내려받기
+```
+$ curl -sSL https://bit.ly/2ysbOFE | bash -s
+```
+ 
