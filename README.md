@@ -36,10 +36,11 @@ Endorsing peer들이 시뮬레이션을 통해 적절하다고 판단한 트랜�
 --------------------------------------------------------
 
 # 튜토리얼
-## 1. 패브릭 테스트 네트워크 사용
+## 1. 사전 준비 (환경설정)
 
-하이퍼레저 패브릭에서 제공하는 예제를 이용해 네트워크를 사용해본다.
-시작하기전 필요한 사전 작업으론
+하이퍼레저 패브릭에서 제공해주는 하이퍼레저 패브릭 샘플을
+시작하기전 필요한 사전 작업을 해야한다.
+
 WSL2 설치 (Ubuntu 20.04.2 LTS)
 Docker Desktop 최신버전
 go, jq, curl ,git, nvm 을 우분투에다 설치
@@ -55,4 +56,12 @@ curl로 패브릭 샘플 내려받기
 ```
 $ curl -sSL https://bit.ly/2ysbOFE | bash -s
 ```
+-------------------------------------
+## 테스트 네트워크 실행
  
+ 테스트 네트워크 불러오기
+ ```
+ cd ~/go/src/github.com/ljwoon94/fabric-samples/test-network
+ ```
+
+![image](https://user-images.githubusercontent.com/68358404/121637686-bee4d280-cac4-11eb-8dee-31650f9fcb3c.png)
