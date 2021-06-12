@@ -45,6 +45,7 @@ Endorsing peer들이 시뮬레이션을 통해 적절하다고 판단한 트랜�
 WSL2 설치 (Ubuntu 20.04.2 LTS)
 Docker Desktop 최신버전
 go, jq, curl ,git, nvm 을 우분투에다 설치
+sudo apt install build-essential
 
 fabric 과 fabric samples 설치
 우분투에 경로 생성
@@ -559,3 +560,112 @@ docker rm logspout
 ```
 ./network.sh down
 ```
+------------------------------------------------------------
+
+## 4-1. 패브릭 애플리케이션 실행
+
+ 이 튜토리얼은 Fabric 애플리케이션이 배치 된 블록 체인 네트워크와 상호 작용하는 방법에 대한 소개한다. Fabric SDK를 사용하여 빌드된 샘플 프로그램을 사용하여 스마트 계약 처리에 자세히 설명된 스마트 계약 API로 원장을 쿼리하고 업데이트하는 스마트 계약을 호출한다. 그리고 샘플 프로그램과 배포된 인증기관을 사용하여 애플리케이션이 허가된 블록 체인과 상호 작용하는데 필요한 X.509 인증서를 생성한다.
+ 
+## 4-2. 네트워크 실행 
+
+네트워크 종료, 사용하지 않는 도커 메시지 삭제, 네트워크 실행 myhannel 이름의 채널 생성 CA인증서도 같이 실행
+
+```
+./network.sh down
+docker network prune
+./network.sh up createChannel -c mychannel -ca
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121768259-4d765400-cb98-11eb-8943-1df2b1b037fe.png)
+
+
+ 이미 승인된 체인코드를 채널에 배포
+
+```
+./network.sh deployCC -ccn basic -ccp ../asset-transfer-basic/chaincode-javascript/ -ccl javascript
+ ```
+ 
+ ![image](https://user-images.githubusercontent.com/68358404/121768293-86aec400-cb98-11eb-8dc9-8ee2d9ff9d97.png)
+
+## 4-3. 샘플 애플리케이션 실행
+
+새 터미널 열고
+
+```
+cd fabric-samples/asset-transfer-basic/application-javascript
+npm install
+node app.js
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121770195-ead68580-cba2-11eb-8d13-74b060592b9d.png)
+
+완료된 모습 error는 잘못된게 아니다. 원래 나오는 부분
+
+![image](https://user-images.githubusercontent.com/68358404/121770273-5fa9bf80-cba3-11eb-8494-0588e71538b7.png)
+
+경로에 code . 입력해 app.js 파일을 분석한다.
+enrollAdmin 은 wallet을 만들고 거기에 인증기관(CA)에서 관리자 자격 증명이 담긴다. wallet/admin.id 파일 에서 관리자의 인증서와 개인 키를 찾을 수 있다.
+
+![image](https://user-images.githubusercontent.com/68358404/121770311-94b61200-cba3-11eb-9fae-f6b0052bcc02.png)
+
+registerAndEnrollUser은 블록체인 네트워크와 상호 작용하는데 사용할 앱 사용자의 id를 등록(regist)하고 인증서와 개인키 등록(enroll)
+
+![image](https://user-images.githubusercontent.com/68358404/121770488-86b4c100-cba4-11eb-8d23-1f20617841f2.png)
+
+ 애플리케이션이 게이트웨이를 통해 계약 이름과 채널 이름을 사용하여 계약에 대한 참조를 받고 있음을 알 수 있다.
+ 
+```
+contract = await network.getContract('chaincodeName', 'smartContractName');
+```
+위 코드는 체인 코드 패키지에 여러 스마트 계약이 포함 된 경우 getContract () API 에서 체인 코드 패키지의 이름과 대상으로 지정할 특정 스마트 계약을 모두 지정할 수 있다.
+
+![image](https://user-images.githubusercontent.com/68358404/121770543-d8f5e200-cba4-11eb-9fe3-fe324bd16ad6.png)
+
+submitTransaction () 함수는 InitLedger일부 샘플 데이터로 원장을 채우기 위해 chaincode 함수를 호출하는데 사용된다 . 내부적으로 submitTransaction () 함수는 서비스 검색을 사용하여 체인 코드에 필요한 승인 피어 세트를 찾고, 필요한 피어 수에서 체인 코드를 호출하고, 해당 피어에서 체인 코드 승인 결과를 수집하고, 마지막으로 orderer 노드에게 트랜잭션을 제출한다. 
+
+![image](https://user-images.githubusercontent.com/68358404/121770587-165a6f80-cba5-11eb-9e49-2dfea4337119.png)
+
+체인코드 호출
+
+![image](https://user-images.githubusercontent.com/68358404/121770605-2eca8a00-cba5-11eb-866e-73058fd27c0f.png)
+
+호출 결과
+
+![image](https://user-images.githubusercontent.com/68358404/121770654-8668f580-cba5-11eb-9815-c6837b1e4a52.png)
+
+이 에러 부분은 체인코드 'UpdateAsset'은 존재하지 않는 자산(asset70)에 대한 트랜잭션 제출을 시도하다 나온 것이다.
+
+## 4-4. 그외에 코드 분석
+
+```
+const { Gateway, Wallets } = require('fabric-network');
+```
+
+위 코드는 Wallat에서 appUser의 신원을 찾고 네트워크를 연결하는데 사용
+
+```
+await gateway.connect(ccp, {
+  wallet,
+  identity: userId,
+  discovery: {enabled: true, asLocalhost: true} 
+});
+```
+
+지갑에 저장된 사용자 ID로 게이트웨이 연결을 설정하고 검색 옵션을 지정함
+
+```
+const ccpPath = path.resolve(__dirname, '..', '..', 'test-network','organizations','peerOrganizations','org1.example.com', 'connection-org1.json');
+```
+
+ccpPath 변수는 애플리케이션 네트워크에 연결하기 위해 사용되는 접속 프로파일에 대한 경로를 설명
+
+await contract.submitTransaction('InitLedger');
+
+다양한 트랜잭션이 있으며 InitLedger 트랜잭션을 사용해 초기화. world state (현재 상태)를 채움
+
+## 4-5. 네트워크 종료
+
+```
+./network.sh down
+```
+
