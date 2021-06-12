@@ -41,6 +41,7 @@ Endorsing peer들이 시뮬레이션을 통해 적절하다고 판단한 트랜�
 하이퍼레저 패브릭에서 제공해주는 하이퍼레저 패브릭 샘플을
 시작하기전 필요한 사전 작업을 해야한다.
 
+순서대로
 WSL2 설치 (Ubuntu 20.04.2 LTS)
 Docker Desktop 최신버전
 go, jq, curl ,git, nvm 을 우분투에다 설치
@@ -92,9 +93,6 @@ docker ps -a
  
  오더 노드는 클라이언트로부터 보증된 트랜잭션을 수신 한 후 트랜잭션 순서에 대한 합의에 도달 한 다음 블록에 추가한다. 그런 다음 블록은 블록 체인 원장에 블록을 추가하는 피어 노드에 배포된다.
 
-
-------------------------------------------
-
 ## 2-2. 채널 만들기
 
  채널은 특정 네트워크 구성원 간의 개인 통신 계층이다. 채널은 채널에 초대 된 조직에서만 사용할 수 있으며 네트워크의 다른 구성원에게는 표시되지 않습다. 각 채널에는 별도의 블록 체인 원장이 있다. 초대를받은 조직은 피어를 채널에 "참여"하여 채널 원장을 저장하고 채널에서 트랜잭션을 검증한다.
@@ -109,8 +107,6 @@ docker ps -a
 
 ![image](https://user-images.githubusercontent.com/68358404/121638874-a5dd2100-cac6-11eb-966e-67f30ec0cd2b.png)
 
------------------------------------------
-
 ## 2-3. 채널에서 체인코드 시작
 
  채널을 만든 후 스마트 계약 을 사용하여 채널 원장과 상호 작용할 수 있다. 스마트 계약(체인코드)는 블록 체인 원장의 자산을 관리하는 비즈니스 로직이 포함되어 있다. 네트워크 구성원이 실행하는 애플리케이션은 스마트 계약(체인코드)을 호출하여 원장에 자산을 생성하고 해당 자산을 변경 및 전송할 수 있다. 애플리케이션은 원장의 데이터를 읽기 위해 스마트 계약을 쿼리한다.
@@ -124,8 +120,6 @@ docker ps -a
 ```
 ./network.sh deployCC -ccn basic -ccp ../asset-transfer-basic/chaincode-go -ccl go
 ```
-
---------------------------------------
 
 ## 2-4. 네트워크와 상호작용
 
@@ -208,6 +202,359 @@ peer chaincode query -C mychannel -n basic -c '{"Args":["ReadAsset","asset6"]}'
 ![image](https://user-images.githubusercontent.com/68358404/121641251-ea1df080-cac9-11eb-974d-1bd0a54e4db0.png)
 
 ## 2-5. 네트워크 중단
+
+```
+./network.sh down
+```
+
+--------------------------------
+
+## 3-1. 채널에 스마트 계약 배포
+
+ Hyperledger Fabric에서 스마트 계약은 체인 코드라고하는 패키지에 배포된다. 트랜잭션을 검증하거나 원장을 쿼리하려는 조직은 피어에 체인 코드를 설치해야합니다. 채널에 조인된 피어에 체인 코드가 설치되면 채널 구성원은 체인 코드를 채널에 배포하고 체인 코드의 스마트 계약을 사용하여 채널 원장에서 자산을 생성하거나 업데이트 할 수 있다.
+
+ 체인 코드는 Peer chaincode lifecycle라는 프로세스를 사용하여 채널에 배포됩니다. Fabric 체인 코드 라이프 사이클을 사용하면 여러 조직에서 체인 코드를 사용하여 트랜잭션을 생성하기 전에 작동 방식에 동의 할 수 있습니다. 피어 라이프 사이클 체인 코드 명령 을 사용해 패브릭 테스트 네트워크의 채널에 체인 코드를 배포하는 방법을 배울 수 있습니다 
+
+## 3-2. 네트워크 시작
+
+```
+cd fabric-samples/test-network
+./network.sh down
+./network.sh up createChannel
+```
+
+2개의 peer 노드와 한개의 orderer 노드 생성
+
+![image](https://user-images.githubusercontent.com/68358404/121764734-0a5cb680-cb81-11eb-95f2-c0379afab0ca.png)
+
+
+## 3-3. Logspout (네트워크 로그 보기)
+
+경로에 있는 monitordocker.sh 복사
+fabric_test 네트워크 로그 감시
+
+```
+cp ../commercial-paper/organization/digibank/configuration/cli/monitordocker.sh 
+./monitordocker.sh fabric_test
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121764817-bbfbe780-cb81-11eb-9502-0eeb5456c72e.png)
+
+## 3-4. 스마트 계약 패키징 (자바스크립트)
+
+피어에 설치하기 전에 체인 코드를 패키징 해야한다.
+
+터미널 새로 하나 킨다. 경로를 /로 이동한 다음
+root 폴더의 소유권을 사용자 소유권으로 바꾼다. (-R 옵션은 하위경로들도 권한을 바꾼다)
+그 후에 fabric-samples/asset-transfer-basic/chaincode-javascript 경로로 이동한다.
+code . 을 사용해 vscode 실행
+
+code . 은 경로의 vscode를 실행하는 명령어로, 사용하려면 vscode에 Reomte-WSL이 설치되어 있어야 한다.
+
+``` 
+cd /
+chown -R ljwoon /root
+cd /fabric-samples/asset-transfer-basic/chaincode-javascript
+code .
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121765067-4db82480-cb83-11eb-8b5e-65655b7715ef.png)
+
+lib폴더에 assetTransfer를 보면
+/asset-transfer-basic/chaincode-javascript 안에 있는 체인코드가 무엇을 하는지 알 수 있다.
+스마트 계약으로 가져오고 자산 전송 클래스를 만드는 데 사용되는 계약 클래스를 볼 수 있다.
+
+![image](https://user-images.githubusercontent.com/68358404/121765342-27938400-cb85-11eb-83a3-d01553ffabe1.png)
+
+체인코드를 패키징 할 수 있도록 모듈설치
+
+```
+npm install
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121765224-5a894800-cb84-11eb-88ce-4ce107fd707d.png)
+
+다시 test-network로 이동
+
+```
+cd ../../test-network
+```
+
+peerCLI를 사용하여 체인 코드 패키지를 생성 할 수 있다. peerCLI를 사용할 수 있게 환경변수 설정.
+
+```
+su root
+export PATH=${PWD}/../bin:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+peer version
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121765764-54956600-cb88-11eb-8c6b-29b36f642f7f.png)
+
+체인코드 패키지 생성
+
+```
+peer lifecycle chaincode package basic.tar.gz --path ../asset-transfer-basic/chaincode-javascript/ --lang node --label basic_1.0
+```
+
+다음 명령어는 현재 디렉토리에 ../asset-transfer-basic/chaincode-javascript/ 경로에 있는 노드 언어인 체인코드를 basic.tar.gz로 패키징 
+--label은 체인코드를 실행할때 사용되는 id 
+체인코드를 패키징 완료하면 네트워크의 피어에게 설치할 수 있다.
+
+
+## 3-5. 체인코드 패키지 설치
+
+ 체인 코드는 트랜잭션을 승인 할 모든 피어에 설치되어야합니다. Org1과 Org2 모두의 보증을 요구하도록 보증 정책을 설정할 것이므로 두 조직에서 운영하는 피어에 체인 코드를 설치
+
+ 우선 Org1 피어에 체인 코드를 설치하기위해선 peerCLI를 사용. peerCLI를 사용하기 위해 환경변수 설정.
+ 
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121765776-742c8e80-cb88-11eb-8153-e7ea42350ada.png)
+
+피어 라이프 사이클 체인 코드 설치 명령을 실행 하여 피어에 체인 코드 를 설치.
+
+```
+peer lifecycle chaincode install basic.tar.gz
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121765822-90c8c680-cb88-11eb-98fe-fef1dd10ff73.png)
+
+이제 Org2 피어에 체인 코드를 설치. 환경변수 설정
+
+```
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121765847-c077ce80-cb88-11eb-8316-65a6c371c9fa.png)
+
+```
+peer lifecycle chaincode install basic.tar.gz
+```
+![image](https://user-images.githubusercontent.com/68358404/121765864-f1580380-cb88-11eb-95b1-73d889c6cf18.png)
+
+네트워크에 있는 피어에게 체인코드 설치 완료
+
+## 3-6. 체인코드 정의 승인
+
+ 체인 코드 패키지를 설치 한 후 조직한테 체인 코드 정의를 승인 받아야한다. 체인코드 패키지 ID는 피어에 설치된 체인 코드를 승인된 체인코드 정의와 연결하는 데 사용되며, 조직은 체인 코드를 사용하여 트랜잭션을 보증 할 수 있다.
+
+체인코드 패키지 아이디를 찾는 명령어
+
+```
+peer lifecycle chaincode queryinstalled
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121765976-adb1c980-cb89-11eb-86af-b841eac2989b.png)
+
+패키지 아이디 복사
+basic_1.0:d3fa7d19384042eda5a9f5d8239dd64d4f1e0ca00e6e33759ddbc86bf7840a69
+
+체인 코드를 승인 할 때 패키지 ID를 사용할 것이므로 계속해서 환경 변수로 저장
+
+```
+export CC_PACKAGE_ID=basic_1.0:d3fa7d19384042eda5a9f5d8239dd64d4f1e0ca00e6e33759ddbc86bf7840a69
+```
+
+echo $CC_PACKAGE_ID 로 환경변수가 제대로 저장되었는지 확인 가능
+
+체인코드 승인 명령어 
+
+```
+peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name basic --version 1.0 --package-id $CC_PACKAGE_ID --sequence 1 --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121766058-5a8c4680-cb8a-11eb-88c5-478f66e2cbab.png)
+
+체인코드 승인
+
+체인 코드 정의를 Org1에서도 승인 해야한다.
+환경변수를 Org1으로 변경
+
+```
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+체인 코드 정의를 Org1로 승인
+
+```
+peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name basic --version 1.0 --package-id $CC_PACKAGE_ID --sequence 1 --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121766168-1188c200-cb8b-11eb-9db3-72e692adbc21.png)
+
+## 3-7. 체인 코드 정의를 채널에 커밋
+ 
+ 충분한 수의 조직이 체인 코드 정의를 승인하면 한 조직이 체인 코드 정의를 채널에 커밋 할 수 있다. 대다수의 채널 구성원이 정의를 승인 한 경우 커밋 트랜잭션이 성공하고 체인 코드 정의에서 동의 한 매개 변수가 채널에서 구현된다.
+ peer lifecycle chaincode checkcommitreadiness 명령을 사용하여 채널 구성원이 동일한 체인 코드 정의를 승인했는지 여부를 확인할 수 있다.
+
+![image](https://user-images.githubusercontent.com/68358404/121766208-6fb5a500-cb8b-11eb-9334-364e7ea3f89a.png)
+
+peer lifecycle chaincode commit 명령을 사용하여 체인 코드 정의를 채널에 커밋 할 수 있다.
+
+```
+peer lifecycle chaincode commit -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name basic --version 1.0 --sequence 1 --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" --peerAddresses localhost:7051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" --peerAddresses localhost:9051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121766325-ee124700-cb8b-11eb-8664-547240835ec3.png)
+
+peer lifecycle chaincode querycommitted 명령을 사용하여 체인 코드 정의가 채널에 커밋되었는지 확인할 수 있다.
+
+```
+peer lifecycle chaincode querycommitted --channelID mychannel --name basic --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121766342-08e4bb80-cb8c-11eb-8dac-bf0c35d529dc.png)
+
+## 3-8. 체인코드 호출
+
+자산 전송 (기본) 체인 코드는 이제 클라이언트 애플리케이션에서 호출 할 준비가 되었다. 다음 명령을 사용하여 원장에 초기 자산 세트를 만든다.
+
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" -C mychannel -n basic --peerAddresses localhost:7051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" --peerAddresses localhost:9051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -c '{"function":"InitLedger","Args":[]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121766435-b0fa8480-cb8c-11eb-892e-77e1be7a32b0.png)
+
+쿼리 함수를 사용하여 체인 코드로 생성 된 자동차 세트를 읽을 수 있다.
+
+```
+peer chaincode query -C mychannel -n basic -c '{"Args":["GetAllAssets"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121766457-d8515180-cb8c-11eb-8976-2aa3566e1357.png)
+
+## 3-9. 스마트 계약 업데이트
+
+동 일한 Fabric 체인 코드 라이프 사이클 프로세스를 사용하여 이미 채널에 배치 된 체인 코드를 업그레이드 할 수 있다. 채널 구성원은 새 체인 코드 패키지를 설치 한 다음 새 패키지 ID, 새 체인 코드 버전 및 1 씩 증가 된 시퀀스 번호로 체인 코드 정의를 승인하여 체인 코드를 업그레이드 할 수 있다. 새 체인 코드는 체인 코드 정의가 채널에 커밋 된 후에 사용할 수 있다. 이 프로세스를 통해 채널 구성원은 체인 코드가 업그레이드 될 때 조정하고 채널에 배포하기 전에 충분한 수의 채널 구성원이 새 체인 코드를 사용할 준비가되었는지 확인할 수 있다.
+
+```
+export PATH=${PWD}/../bin:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+peer lifecycle chaincode package basic_2.tar.gz --path ../asset-transfer-basic/chaincode-javascript/ --lang node --label basic_2.0
+```
+
+체인코드를 2번째로 피키징 하기에 이름과 label을 2.0으로 지음
+peerCLI를 Org1으로 환경변수 설정
+
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+체인코드 설치
+
+```
+peer lifecycle chaincode install basic_2.tar.gz
+```
+
+체인코드 패키지 아이디 확인
+
+```
+peer lifecycle chaincode queryinstalled
+```
+
+basic_2.0:80febd83fde021becfaacba6c8b3241ebc4bf65b8a8d146ed7679699c990465e
+
+체인코드 패키지 아이디 환경변수에 등록
+echo $NEW_CC_PACKAGE_ID 로 확인 가능
+
+```
+export NEW_CC_PACKAGE_ID=basic_2.0:80febd83fde021becfaacba6c8b3241ebc4bf65b8a8d146ed7679699c990465e
+```
+
+Org1은 이제 새 체인 코드 정의를 승인 할 수 있다.
+
+```
+peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name basic --version 2.0 --package-id $NEW_CC_PACKAGE_ID --sequence 2 --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem"
+```
+
+마찬가지로 Org2에 체인코드 패키지를 설치하고 체인코드 정의
+
+```
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051
+```
+
+체인코드 패키지 설치
+
+```
+peer lifecycle chaincode install basic_2.tar.gz
+```
+
+체인코드 채널 승인
+
+```
+peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name basic --version 2.0 --package-id $NEW_CC_PACKAGE_ID --sequence 2 --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem"
+```
+
+peer lifecycle chaincode checkcommitreadiness 명령을 사용하여 시퀀스 2의 체인 코드 정의가 채널에 커밋 될 준비가되었는지 확인
+
+```
+peer lifecycle chaincode checkcommitreadiness --channelID mychannel --name basic --version 2.0 --sequence 2 --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" --output json
+```
+
+체인 코드는 새 체인 코드 정의가 커밋 된 후 채널에서 업그레이드된다. 그때까지 이전 체인 코드는 두 조직의 피어에서 계속 실행됩니다. Org2는 다음 명령을 사용하여 체인 코드를 업그레이드 할 수 있다.
+
+```
+peer lifecycle chaincode commit -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name basic --version 2.0 --sequence 2 --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" --peerAddresses localhost:7051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" --peerAddresses localhost:9051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt"
+```
+
+새 체인 코드가 피어에서 시작되었는지 확인할 수 있다  docker ps
+
+```
+docker ps
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121767091-308a5280-cb91-11eb-8c64-e1382075b22f.png)
+
+
+새 체인코드 테스트 
+
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" -C mychannel -n basic --peerAddresses localhost:7051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt" --peerAddresses localhost:9051 --tlsRootCertFiles "${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt" -c '{"function":"CreateAsset","Args":["asset8","blue","16","Kelley","750"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121767105-40a23200-cb91-11eb-8d24-ee4566acc32a.png)
+
+
+원장의 모든 자동차를 다시 쿼리하여 새 자동차를 볼 수 있다.
+
+```
+peer chaincode query -C mychannel -n basic -c '{"Args":["GetAllAssets"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121767113-4c8df400-cb91-11eb-8419-a82979429a78.png)
+
+## 3-10. 네트워크 종료
+
+logspout 종료
+
+```
+docker stop logspout
+docker rm logspout
+```
+
+네트워크 종료
 
 ```
 ./network.sh down
