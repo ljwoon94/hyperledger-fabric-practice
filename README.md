@@ -659,7 +659,9 @@ const ccpPath = path.resolve(__dirname, '..', '..', 'test-network','organization
 
 ccpPath 변수는 애플리케이션 네트워크에 연결하기 위해 사용되는 접속 프로파일에 대한 경로를 설명
 
+```
 await contract.submitTransaction('InitLedger');
+```
 
 다양한 트랜잭션이 있으며 InitLedger 트랜잭션을 사용해 초기화. world state (현재 상태)를 채움
 
@@ -667,5 +669,33 @@ await contract.submitTransaction('InitLedger');
 
 ```
 ./network.sh down
+```
+
+## 5-1. 상업 어음 튜토리얼
+
+이 튜토리얼은 상업 어음 샘플 애플리케이션과 스마트 계약을 설치하고 사용하는 방법을 보여준다.
+
+## 5-2. 시나리오
+
+![image](https://user-images.githubusercontent.com/68358404/121771088-2162cf00-cba8-11eb-92b3-e8345913d603.png)
+
+조직 : MagnetoCorp, DigiBank 
+개발자 : MagnetoCorpDevelop 
+관리자 : MagnetoCorpAdmin, DigiBankAdmin 
+사용자 : Isabella(MagnetoCorp소속), Balaji(DigiBank) 
+
+Isabella가 어음 발행 
+Balaji가 어음 구매, 상환
+
+## 5-3. 네트워크 실행
+
+![image](https://user-images.githubusercontent.com/68358404/121771205-f0cf6500-cba8-11eb-9b91-9c30b1cfa16c.png)
+
+2개의 peer 노드 과 하나의 orderer 노드 각자 CA 존재. 
+Org1을 DigiBank로, Org2를 MagnetoCorp로 운영
+
+```
+cd fabric-samples/commercial-paper
+./network-starter.sh
 ```
 
