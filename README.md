@@ -829,3 +829,45 @@ peer lifecycle chaincode approveformyorg --orderer localhost:7050 --ordererTLSHo
 ```
 
 ![image](https://user-images.githubusercontent.com/68358404/121793652-40ab3c00-cc3c-11eb-88ea-63485a59a4d4.png)
+
+## 5-7. 체인 코드 정의를 채널에 커밋
+
+체인코드가 채널에서 성공적으로 정의되면 채널의 클라이언트 애플리케이션에서 체인코드 CommercialPaper를 호출할 수 있다. DigiBank admin은 코드의 정의를 papercontract채널에 커밋한다.
+
+```
+(digibank admin)$ peer lifecycle chaincode commit -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --peerAddresses localhost:7051 --tlsRootCertFiles ${PEER0_ORG1_CA} --peerAddresses localhost:9051 --tlsRootCertFiles ${PEER0_ORG2_CA} --channelID mychannel --name papercontract -v 0 --sequence 1 --tls --cafile $ORDERER_CA --waitForEvent
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121794544-0a71ba80-cc44-11eb-96f8-c37a87c62c2e.png)
+
+## 5-8. 신청 구조
+
+MagnetoCorp의 Isabella는 어플리케이션에서 체인코드(issue)를 사용하여 상업 어음을 발행한다.
+
+![image](https://user-images.githubusercontent.com/68358404/121794647-0e520c80-cc45-11eb-9ade-365769b5e41b.png)
+
+어플리케이션에서 요청하면 gateway가 피어에게 트랜잭션을 제출한다. 피어는 트랜잭션이 맞는지 확인후 SWset에 담아서 다시 gateway로
+보낸다. 그리고 gateway는 orderer에 값을 보내 Ordere는 블록을 생성하고, 다른 피어들에게 트랜잭션을 보낸다.
+
+MagnetoCorp의 isabella가 사용하는 기능
+
+```
+cd commercial-paper/organization/magnetocorp/application/
+code issue.js
+```
+
+지갑에서 id 사용해 본인 식별 
+const wallet = await Wallets.newFileSystemWallet('../identity/user/isabella/wallet');
+
+
+issue.js 에 gateway를 사용해 네트워크에 접속
+await gateway.connect(connectionProfile, connectionOptions);
+
+![image](https://user-images.githubusercontent.com/68358404/121794903-32aee880-cc47-11eb-8c58-b922eb529987.png)
+
+
+const contract = await network.getContract('papercontract');
+
+const issueResponse = await contract.submitTransaction('issue', 'MagnetoCorp', '00001', ...);
+submitTransaction을 사용해 스타트 계약 트랜젝션을 제출할 수 있다.
+
