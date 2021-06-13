@@ -675,7 +675,8 @@ await contract.submitTransaction('InitLedger');
 
 ## 5-1. 상업 어음 튜토리얼
 
-이 튜토리얼은 상업 어음 샘플 애플리케이션과 스마트 계약을 설치하고 사용하는 방법을 보여준다.
+이 튜토리얼은 상업 어음 샘플 애플리케이션과 스마트 계약을 설치하고 사용하는 방법을 보여준다. 
+Fabric SDK는 트랜잭션 승인, 주문 및 알림 프로세스를 처리하여 애플리케이션의 논리를 간단하게 만든다. SDK는 게이트웨이 를 사용하여 네트워크 세부 정보와 connectionOptions 를 추상화 하여 트랜잭션 재시도와 같은 고급 처리 전략을 선언한다.
 
 ## 5-2. 시나리오
 
@@ -871,3 +872,68 @@ const contract = await network.getContract('papercontract');
 const issueResponse = await contract.submitTransaction('issue', 'MagnetoCorp', '00001', ...);
 submitTransaction을 사용해 스타트 계약 트랜젝션을 제출할 수 있다.
 
+## 5-9. 지갑
+
+Isabell의 신분 확인, 인증서 발급.
+
+```
+npm install
+node enrollUser.js
+```
+
+wallet이라는 경로에 인증서와, 비밀키가 생성된다.
+
+## 5-10. 발급 신청
+
+이제 issue.js 를 실행해 상업 어음을 발행할 수 있다.
+
+```
+node issue.js
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121798857-a5c65800-cc63-11eb-9d7f-d29e7d5ffeab.png)
+
+## 5-11. Digibank 애플리케이션
+
+ DigiBank의 체인코드(buy)을 사용 하여 거래를 원장에 제출하여 00001MagnetoCorp에서 DigiBank로 상업 어음 소유권을 이전한다.
+ 
+```
+cd commercial-paper/organization/digibank/application/
+code buy.js
+```
+buy.js 코드분석
+
+const buyResponse = await contract.submitTransaction('buy', 'MagnetoCorp', '00001', ...);
+buy 트랜잭션 호출
+
+사용자 등록
+
+```
+cd commercial-paper/organization/digibank/application/
+npm install
+node enrollUser.js
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121799098-04d89c80-cc65-11eb-9d58-b0a2f08c2093.png)
+
+어음 구매
+
+```
+node buy.js
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121799131-2fc2f080-cc65-11eb-9c9f-f963f08c01d6.png)
+
+어음 상환
+
+node redeem.js
+
+```
+![image](https://user-images.githubusercontent.com/68358404/121799158-639e1600-cc65-11eb-8930-832035a72c35.png)
+```
+
+## 5-12. 네트워크 종료
+```
+cd fabric-samples/commercial-paper
+./network-clean.sh
+```
