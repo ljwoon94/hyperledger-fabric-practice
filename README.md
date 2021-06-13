@@ -671,6 +671,8 @@ await contract.submitTransaction('InitLedger');
 ./network.sh down
 ```
 
+----------------------------------------------------
+
 ## 5-1. 상업 어음 튜토리얼
 
 이 튜토리얼은 상업 어음 샘플 애플리케이션과 스마트 계약을 설치하고 사용하는 방법을 보여준다.
@@ -691,7 +693,7 @@ Balaji가 어음 구매, 상환
 
 ![image](https://user-images.githubusercontent.com/68358404/121771205-f0cf6500-cba8-11eb-9b91-9c30b1cfa16c.png)
 
-2개의 peer 노드 과 하나의 orderer 노드 각자 CA 존재. 
+2개의 peer 노드 과 하나의 orderer 노드 각자 CA 존재. couchdb 2개 있다.
 Org1을 DigiBank로, Org2를 MagnetoCorp로 운영
 
 ```
@@ -699,3 +701,131 @@ cd fabric-samples/commercial-paper
 ./network-starter.sh
 ```
 
+![image](https://user-images.githubusercontent.com/68358404/121792583-f1600e00-cc31-11eb-8d8a-cd5c11c4975b.png)
+
+## 5-4. MagnetoCorp로 네트워크 모니터링
+
+MagnetoCorp Admin은 현재 PaperNet의 구성 요소를 모니터링 한다.
+
+```
+cd commercial-paper/organization/magnetocorp
+./configuration/cli/monitordocker.sh fabric_test
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121792806-561c6800-cc34-11eb-8d63-6213e5e1a0b9.png)
+
+## 5-5. 상업 어음 스마트 계약 검토
+
+상업 어음 스마트 계약의 핵심기능은 3가지가 있다. issue(어음 발행), buy(어음 구매), redeem(어음 상환)
+commercial-paper/organization/magnetocorp 경로로 가 contract/lib/papercontract.js 코드를 확인해본다.
+wsl2에서 vscode를 실행하려면 root권한이 아닌 상태로 경로로 가 code. 을 입력한다.
+권한땜에 접속하기 힘드면 chown -R 사용자계정 /경로 를 입력한다.
+
+```
+cd commercial-paper/organization/magnetocorp
+code .
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121792884-389bce00-cc35-11eb-9693-366af245fca2.png)
+
+class CommercialPaperContract extends Contract {
+CommercialPaperContract 클래스는 내장된 Fabric Contract클래스를 기반으로 스마트 계약 클래스를 정의
+
+## 5-6. 채널에 스마트 계약 배포
+### 5-6-1. MagnetoCorp로 체인코드 설치 및 승인
+
+MagnetoCorp와 DigiBank의 admin으로서 체인 코드를 설치하고 승인해야한다.
+MagnetoCorp admin은 papercontract를 MagnetoCorp피어에 복사본을 설치한다.
+MagnetoCorp admin이 네트워크와 상호작용하려면 peerCLI 사용해야한다.
+샘플에서 제공하는 스크립트를 사용하여 명령 창에서 peerCLI를 사용하기위한 환경 변수를 설정할 수 있습니다.
+
+```
+cd commercial-paper/organization/magnetocorp
+source magnetocorp.sh
+```
+
+환경변수 설정완료
+
+![image](https://user-images.githubusercontent.com/68358404/121793039-4a31a580-cc36-11eb-8966-b429def504f6.png)
+
+체인코드 패키징
+
+```
+peer lifecycle chaincode package cp.tar.gz --lang node --path ./contract --label cp_0
+```
+
+MagnetoCorp peer에 체인코드 설치
+
+```
+peer lifecycle chaincode install cp.tar.gz
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121793075-9846a900-cc36-11eb-8031-70df0e9551c7.png)
+
+조직(MagnetoCorp)에게 체인코드 정의를 승인이 필요한다. 승인을 하기 위핸 package_id가 필요하다.
+
+```
+peer lifecycle chaincode queryinstalled
+```
+
+체인코드 Package_id
+
+![image](https://user-images.githubusercontent.com/68358404/121793127-02f7e480-cc37-11eb-9766-6fb6c09c74d6.png)
+
+Package_id 환경변수에 등록 echo $PACKAGE_ID로 등록됐는지 확인 가능
+
+```
+export PACKAGE_ID=cp_0:df23cfaa2d118a48df5002d95521e14df1070e44d7858da6d2da2d9df3f138ce
+```
+
+체인코드 승인
+
+```
+peer lifecycle chaincode approveformyorg --orderer localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name papercontract -v 0 --package-id $PACKAGE_ID --sequence 1 --tls --cafile $ORDERER_CA
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121793213-dd1f0f80-cc37-11eb-9253-f2a9bf0749d9.png)
+
+### 5-6-2. DigiBank로 스마트 계약 설치 및 승인
+
+DigiBank admin이 체인코드 설치 및 승인
+네트워크와 상호작용 하기위해 필요한 peerCLI를 사용하기 위해 환경변수가 적혀있는 스크립트 실행  
+
+```
+cd commercial-paper/organization/digibank/
+source digibank.sh
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121793238-18214300-cc38-11eb-887b-d10cb6525976.png)
+
+체인코드 패키징
+
+```
+peer lifecycle chaincode package cp.tar.gz --lang node --path ./contract --label cp_0
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121793269-74846280-cc38-11eb-9402-470338884666.png)
+
+체인코드 설치
+
+```
+peer lifecycle chaincode install cp.tar.gz
+```
+
+조직에 체인코드 승인하기위해 Package_id 등록
+
+```
+peer lifecycle chaincode queryinstalled
+```
+
+```
+export PACKAGE_ID=cp_0:f2316bf21cdc9aa6c3650c815228f88b3ae20cd2a74f30a1db76f02be2c4d599
+```
+
+조직에 체인코드 승인
+
+```
+peer lifecycle chaincode approveformyorg --orderer localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name papercontract -v 0 --package-id $PACKAGE_ID --sequence 1 --tls --cafile $ORDERER_CA
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121793652-40ab3c00-cc3c-11eb-88ea-63485a59a4d4.png)
