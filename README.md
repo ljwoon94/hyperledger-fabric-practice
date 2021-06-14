@@ -928,12 +928,226 @@ node buy.js
 
 node redeem.js
 
-```
 ![image](https://user-images.githubusercontent.com/68358404/121799158-639e1600-cc65-11eb-8930-832035a72c35.png)
-```
 
 ## 5-12. 네트워크 종료
 ```
 cd fabric-samples/commercial-paper
 ./network-clean.sh
 ```
+
+--------------------------------------------------
+
+## 6-1. Fabric에서 개인 데이터 사용
+
+ 이 튜토리얼은 개인 데이터 수집(PDC)을 사용하여 인증된 조직 동료를 위해 블록체인 네트워크에서 개인 데이터의 저장 및 검색을 제공하는 방법을 보여준다. 컬렉션은 해당 컬렉션을 관리하는 정책이 포함된 컬렉션 정의 파일을 사용하여 지정된다.
+ 
+## 6-2. 자산 전송 개인 데이터 샘플 사용 사례
+
+ 이 샘플은 Org1과 Org2 간에 자산을 전송하기 위해 세 개(assetCollection, Org1MSPPrivateCollection, Org2MSPPrivateCollection)의 개인 데이터 수집 및 사용을 보여준다.
+ Org1의 구성원은 이제 소유자라고하는 새 자산을 작성한다. 소유자의 신원을 포함한 자산의 공개 세부 정보는라는 비공개 데이터 컬렉션(assetCollection)에 저장된다. 
+ 자산은 또한 소유자가 제공한 평가 가치로 생성된다. 평가된 가치는 각 참가자가 자산 양도에 동의하는데 사용되며 소유자 조직의 컬렉션(Org1MSPPrivateCollection)에만 저장된다. 
+ 자산을 구매하려면 구매자가 자산 소유자와 동일한 평가 가치에 동의 해야한다. 이 단계에서 구매자(Org2의 구성원)는 거래 계약을 작성하고 스마트 계약 기능(AgreeToTransfer)을 사용하여 평가 가치에 동의한다. 이 값은 Org2MSPPrivateCollection컬렉션에 저장된다 . 이제 자산 소유자는 스마트 계약 기능을 사용하여 자산을 구매자에게 양도 할 수 있다.
+ 'TransferAsset'함수는 채널 원장의 해시를 사용하여 자산을 이전하기 전에 소유자와 구매자가 동일한 평가값에 동의했는지 확인한다.
+  
+ ## 6-3. 컬렉션 정의 JSON 파일 빌드
+ 
+ 일련의 조직이 개인 데이터를 사용하여 거래하기 전에 채널의 모든 조직은 각 체인 코드와 연관된 개인 데이터 콜렉션을 정의하는 콜렉션 정의 파일을 빌드해야한다. 개인 데이터 컬렉션에 저장된 데이터는 채널의 모든 구성원이 아닌 특정 조직의 피어에게만 배포된다. 컬렉션 정의 파일은 조직이 체인 코드에서 읽고 쓸 수있는 모든 개인 데이터 컬렉션을 설명한다.각 컬렉션은 다음 속성으로 정의된다.
+ 
+* name: 컬렉션의 이름이다.
+* policy: 컬렉션 데이터를 유지할 수있는 조직 피어를 정의한다.
+* requiredPeerCount: 체인 코드 보증 조건으로 개인 정보 유포에 필요한 피어의 수
+* maxPeerCount: 데이터 중복성을 위해 현재 보증하는 피어가 데이터 배포를 시도 할 다른 피어의 수이다. 보증 피어가 다운되면 개인 데이터를 가져 오라는 요청이있는 경우 커밋시 이러한 다른 피어를 사용할 수 있다.
+* blockToLive: 가격 또는 개인 정보와 같이 매우 민감한 정보의 경우이 값은 데이터가 블록 측면에서 개인 데이터베이스에 얼마나 오래 있어야 하는지를 나타낸다. 데이터는 개인 데이터베이스에서이 지정된 수의 블록 동안 유지되며 그 후에 제거되어이 데이터가 네트워크에서 쓸모 없게됩니다. 개인 데이터를 무기한 유지하려면, 즉 개인 데이터를 절대 제거하지 않으려면 blockToLive속성을로 0으로 설정한다 .
+* memberOnlyRead: 값은 true피어가 컬렉션 구성원 조직 중 하나에 속한 클라이언트 만 개인 데이터에 대한 읽기 액세스를 허용하도록 자동으로 적용 함을 나타낸다.
+* memberOnlyWrite: 값은 true피어가 컬렉션 구성원 조직 중 하나에 속한 클라이언트 만 개인 데이터에 대한 쓰기 액세스를 허용하도록 자동으로 적용 함을 나타낸다.
+* endorsementPolicy: 개인 데이터 수집에 쓰기 위해 충족해야하는 보증 정책을 정의한다. 컬렉션 수준 보증 정책은 체인 코드 수준 정책으로 재정의된다. 정책 정의 작성에 대한 자세한 정보는 보증 정책 주제를 참조한다.
+
+조직이 어떤 컬렉션에도 속하지 않더라도 체인 코드를 사용하는 모든 조직에서 동일한 컬렉션 정의 파일을 배포해야한다. 
+자산 전송 개인 데이터 예제에는 세 개의 개인 정의 하는 collections_config.json 파일이 포함되어 있다.
+fabric_samples/asset-transfer-private-data/chaincode-go/ 경로에 있다.
+
+![image](https://user-images.githubusercontent.com/68358404/121829078-7f083000-ccfc-11eb-9351-f6f1f4b82d17.png)
+
+
+assetCollection 정의한 policy속성은 Org1과 Org2가 모두 해당 피어에 컬렉션을 저장할 수 있음을 지정한다. 
+"memberOnlyRead": true, "memberOnlyWrite": true member가 컬랙션을 읽거나 쓸 수 있다. 
+
+이 컬렉션 정의 파일은 peer lifecycle chaincode commit 명령을 사용하여 체인 코드 정의가 채널에 커밋 될 때 배포된다.
+
+## 6-4. 체인 코드 API를 사용하여 개인 데이터 읽기 및 쓰기
+
+ 자산 전송 개인 데이터 샘플은 데이터에 액세스하는 방법에 따라 개인 데이터를 세 개의 개별 데이터 정의로 나눈다.
+ 
+ ![image](https://user-images.githubusercontent.com/68358404/121839695-9acc0000-cd15-11eb-85ee-9f40c4442f83.png)
+
+assetCollection에 objectType, color, size, owner이 저장된다
+수집 정책 (Org1 및 Org2)의 정의에 따라 상기 채널의 부재로 표시한다.
+
+자산 전송 개인 데이터 샘플 스마트 계약에 의해 생성 된 모든 데이터는 PDC에 저장된다.
+
+collections_config.json 는 Org1 및 Org2의 모든 피어가 개인 데이터베이스에 자산 전송 개인 데이터를 저장하고 거래 할 수 있도록 허용
+하지만 Org1 컬랙션에 있는 appraisedValue는 Org1.member만 저장하고 거래할 수 있다. Org2 컬랙션에 있는 appraisedValue도 Org2.member만 저장하고 거래가능하다.
+
+## 6-5. 네트워크 시작, 개인 데이터 스마트 계약을 채널에 배포
+
+네트워크 실행
+
+```
+cd fabric-samples/test-network
+./network.sh down
+./network.sh up createChannel -ca -s couchdb
+```
+
+개인 데이터 스마트 계약을 채널에 배포
+
+```
+./network.sh deployCC -ccn private -ccp ../asset-transfer-private-data/chaincode-go/ -ccl go -ccep "OR('Org1MSP.peer','Org2MSP.peer')" -cccg ../asset-transfer-private-data/chaincode-go/collections_config.json
+```
+
+## 6-6. 신원등록
+
+ 개인 데이터 전송 스마트 계약은 네트워크에 속한 개별 ID의 소유권을 지원한다. 이 시나리오에서 자산 소유자는 Org1의 구성원이되고 구매자는 Org2에 속한다. GetClientIdentity().GetID()API와 사용자 인증서 내의 정보 간의 연결을 강조하기 위해 Org1 및 Org2 인증 기관 (CA)을 사용하여 두 개의 새 ID를 등록한 다음 CA를 사용하여 각 ID의 인증서와 개인 키를 생성한다.
+ 
+Fabric CA 클라이언트를 사용하가위해 다음 환경 변수를 설정
+
+```
+export PATH=${PWD}/../bin:${PWD}:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+```
+
+Org1 CA를 사용하여 ID 자산 소유자를 만듭니다. Fabric CA 클라이언트 홈을 Org1 CA 관리자의 MSP로 설정
+
+```
+export FABRIC_CA_CLIENT_HOME=${PWD}/organizations/peerOrganizations/org1.example.com/
+```
+
+fabric-ca-client 도구를 사용하여 새 소유자 클라이언트 ID를 등록 할 수 있다.
+
+```
+fabric-ca-client register --caname ca-org1 --id.name owner --id.secret ownerpw --id.type client --tls.certfiles "${PWD}/organizations/fabric-ca/org1/tls-cert.pem"
+```
+
+이제 등록 명령에 등록 이름과 암호를 제공하여 ID 인증서와 MSP 폴더를 생성 할 수 있다.
+
+```
+fabric-ca-client enroll -u https://owner:ownerpw@localhost:7054 --caname ca-org1 -M "${PWD}/organizations/peerOrganizations/org1.example.com/users/owner@org1.example.com/msp" --tls.certfiles "${PWD}/organizations/fabric-ca/org1/tls-cert.pem"
+```
+
+노드 OU 구성 파일을 소유자 ID MSP 폴더에 복사한다.
+
+```
+cp "${PWD}/organizations/peerOrganizations/org1.example.com/msp/config.yaml" "${PWD}/organizations/peerOrganizations/org1.example.com/users/owner@org1.example.com/msp/config.yaml"\
+```
+
+Org2 CA를 사용하여 구매자 ID를 만들 수 있습니다. Fabric CA 클라이언트 홈을 Org2 CA 관리자로 설정
+
+```
+export FABRIC_CA_CLIENT_HOME=${PWD}/organizations/peerOrganizations/org2.example.com/
+```
+fabric-ca-client 도구를 사용하여 새 소유자 클라이언트 ID를 등록 
+
+```
+fabric-ca-client register --caname ca-org2 --id.name buyer --id.secret buyerpw --id.type client --tls.certfiles "${PWD}/organizations/fabric-ca/org2/tls-cert.pem"
+```
+
+이제 등록하여 ID MSP 폴더를 생성 
+
+```
+fabric-ca-client enroll -u https://buyer:buyerpw@localhost:8054 --caname ca-org2 -M "${PWD}/organizations/peerOrganizations/org2.example.com/users/buyer@org2.example.com/msp" --tls.certfiles "${PWD}/organizations/fabric-ca/org2/tls-cert.pem"
+```
+
+아래 명령을 실행하여 노드 OU 구성 파일을 구매자 ID MSP 폴더에 복사
+
+```
+cp "${PWD}/organizations/peerOrganizations/org2.example.com/msp/config.yaml" "${PWD}/organizations/peerOrganizations/org2.example.com/users/buyer@org2.example.com/msp/config.yaml"
+```
+
+## 6-7. 개인 데이터에 자산 만들기
+
+소유자의 신원을 생성 했으므로 개인 데이터 스마트 계약을 호출하여 새 자산을 생성 할 수 있다. test-network 디렉토리의 터미널에 환경변수 설정.
+
+```
+export PATH=${PWD}/../bin:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/owner@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+CreateAsset함수를 사용하여 아이디 asset1, 색상 green, 크기 20, appraisedValue 100인 개인 데이터에 저장된 자산을 생성
+
+```
+export ASSET_PROPERTIES=$(echo -n "{\"objectType\":\"asset\",\"assetID\":\"asset1\",\"color\":\"green\",\"size\":20,\"appraisedValue\":100}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" -C mychannel -n private -c '{"function":"CreateAsset","Args":[]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\"}"
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/121849595-7b899e80-cd26-11eb-891c-159ce56d5fe6.png)
+
+ReadAsset 함수를 사용하여 assetCollection 컬렉션을 Org1 로 쿼리 하여 생성 된 자산의 주요 세부 정보를 읽기
+
+```
+peer chaincode query -C mychannel -n private -c '{"function":"ReadAsset","Args":["asset1"]}'
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/121850343-97417480-cd27-11eb-88d5-e15096d8ff21.png)
+
+이제 Org1의 구성원으로 개인 데이터에 저장된 asset1의 appraisedValue를 쿼리 
+
+```
+peer chaincode query -C mychannel -n private -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPPrivateCollection","asset1"]}'
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/121850561-ebe4ef80-cd27-11eb-95c1-94fd1fbcdefe.png)
+
+## 6-7. 권한이없는 피어로 개인 데이터 쿼리
+
+Org2의 피어로 전환
+
+```
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/buyer@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051
+```
+
+Org2의 피어는 사이드 데이터베이스에 asset1 호출
+
+```
+peer chaincode query -C mychannel -n private -c '{"function":"ReadAsset","Args":["asset1"]}'
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/121850791-41b99780-cd28-11eb-8806-abca9d1a0551.png)
+
+
+ReadAssetPrivateDetails 함수에 asset1을 호출 시도
+Org2 컬랙션에는 저장이 된 것이 없어 아무것도 실행되지 않는다.
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile "${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem" -C mychannel -n private -c '{"function":"ReadAssetPrivateDetails","Args":["Org2MSPPrivateCollection","asset1"]}'
+```
+
+결과 한줄 띄어져 있다.
+
+![image](https://user-images.githubusercontent.com/68358404/121851143-bab8ef00-cd28-11eb-8994-57051160bca1.png)
+
+Org2의 사용자는 Org1 개인 데이터 콜렉션을 읽을 수도 없다.
+
+```
+peer chaincode query -C mychannel -n private -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPPrivateCollection","asset1"]}'
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/121851253-de7c3500-cd28-11eb-82c9-f94ad0674fe8.png)
+
