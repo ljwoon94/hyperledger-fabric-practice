@@ -1239,3 +1239,68 @@ peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.exam
 결과 
 
 ![image](https://user-images.githubusercontent.com/68358404/121986510-949b5980-cdd1-11eb-9e16-b237bf7d286b.png)
+
+## 6-9. 개인 데이터 삭제
+
+ Org2MSPPrivateCollection 정의는 blockToLive 의 속성 값에 의해 3개 블록을 데이터베이스에 거주하고 블록이 추가되면 이전 데이터가 삭제된다. 채널에 추가 블록을 생성하면 appraisedValueOrg2가 동의 한 블록이 결국 제거됩니다. 시연하기 위해 3 개의 새 블록을 만는다.
+ 
+Org2로 변경
+
+```
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/buyer@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051 
+```
+
+값 확인
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"ReadAssetPrivateDetails","Args":["Org2MSPPrivateCollection","asset1"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121987142-d2e54880-cdd2-11eb-972f-349e4aac48ae.png)
+
+개인 데이터가 데거되기 전에 추가하는 블록 수를 추적하기 위해 새 터미널을 열고 데이터 로그 확인
+
+```
+docker logs peer0.org1.example.com 2>&1 | grep -i -a -E 'private|pvt|privdata'
+```
+
+Org2의 구성원으로 작동하는 터미널로 돌아가 블록 3개 생성
+
+```
+export ASSET_PROPERTIES=$(echo -n "{\"objectType\":\"asset\",\"assetID\":\"asset2\",\"color\":\"blue\",\"size\":30,\"appraisedValue\":100}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"CreateAsset","Args":[]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\"}"
+```
+```
+export ASSET_PROPERTIES=$(echo -n "{\"objectType\":\"asset\",\"assetID\":\"asset3\",\"color\":\"red\",\"size\":25,\"appraisedValue\":100}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"CreateAsset","Args":[]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\"}"
+```
+```
+export ASSET_PROPERTIES=$(echo -n "{\"objectType\":\"asset\",\"assetID\":\"asset4\",\"color\":\"orange\",\"size\":15,\"appraisedValue\":100}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"CreateAsset","Args":[]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\"}"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121987346-471fec00-cdd3-11eb-89a0-76dcf1f32006.png)
+
+블록생성 확인
+
+```
+docker logs peer0.org1.example.com 2>&1 | grep -i -a -E 'private|pvt|privdata'
+```
+![image](https://user-images.githubusercontent.com/68358404/121987451-76365d80-cdd3-11eb-8f53-02a7dfedcaf3.png)
+
+삭제됐는지 확인
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"ReadAssetPrivateDetails","Args":["Org2MSPPrivateCollection","asset1"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121987491-88b09700-cdd3-11eb-922f-8389d8cb053e.png)
+
+## 6-10. 네트워크 종료
+
+```
+./network.sh down
+```
