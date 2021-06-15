@@ -56,7 +56,7 @@ $ cd $HOME/go/src/github.com/<your_github_userid>
 
 curl로 패브릭 샘플 내려받기
 ```
-$ curl -sSL https://bit.ly/2ysbOFE | bash -s
+$ curl -sSL https://bit.ly/2ysbOFE | bash -s -- 2.2.3 1.5.0
 ```
 -------------------------------------
 ## 2-1. 테스트 네트워크 실행
@@ -159,10 +159,38 @@ export CORE_PEER_ADDRESS=localhost:7051
  
  ![image](https://user-images.githubusercontent.com/68358404/121640237-a24a9980-cac8-11eb-9c8b-b697d66da84d.png)
 
- 다음 명령을 실행하여 채널 원장에 추가 된 자산 목록을 가져온다.
+혹시 실행 했는데 다음과 같은 오류가 나온다면 </br></br>
+https://kudpassion.com/%ED%95%98%EC%9D%B4%ED%8D%BC-%EB%A0%88%EC%A0%80-js-1/ </br></br>
+<img height="auto" src="https://user-images.githubusercontent.com/54825978/121109063-cd718680-c845-11eb-81cc-a057a74b7afc.png">
+</br>
+위 에러는 네트워크의 설정이 잘못 되어 발생 되는 것을 보아 </br>
+◾ docker-compose.yaml </br>
+◾ core.yaml 이 문제가 있다고 판단
+</br></br>
+◾ docker-compose-test-net.yaml에 있는 </br>
+CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=${COMPOSE_PROJECT_NAME}_test  를 모두 </br>
+CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=docker_test로 변경
+<img height="auto" src="https://user-images.githubusercontent.com/54825978/121109355-5b4d7180-c846-11eb-8c51-79ad28f929fb.png">
+<img height="auto" src="https://user-images.githubusercontent.com/54825978/121109411-78824000-c846-11eb-8777-496fecdba63e.png">
+</br>
+test-network/config </br>
+
+◾ core.yaml에 있는 NetworkMode: host </br>
+
+NetworkMode: docker_test로 변경
+
+<img height="auto" src="https://user-images.githubusercontent.com/54825978/121109659-f5151e80-c846-11eb-8b41-c7fb734670a4.png">
+</br>
+
+◾ 네트워크 재실행 후 처음부터 다시한다.
+
+-------------------
+
+다음 명령을 실행하여 채널 원장에 추가 된 자산 목록을 가져온다.
  
 ```
 peer chaincode query -C mychannel -n basic -c '{"Args":["GetAllAssets"]}'
+
 ```
 
 ![image](https://user-images.githubusercontent.com/68358404/121640418-db830980-cac8-11eb-8321-f9c470043f96.png)
@@ -232,11 +260,11 @@ cd fabric-samples/test-network
 ## 3-3. Logspout (네트워크 로그 보기)
 
 경로에 있는 monitordocker.sh 복사
-fabric_test 네트워크 로그 감시
+docker_test 네트워크 로그 감시
 
 ```
-cp ../commercial-paper/organization/digibank/configuration/cli/monitordocker.sh 
-./monitordocker.sh fabric_test
+cp ../commercial-paper/organization/digibank/configuration/cli/monitordocker.sh .
+./monitordocker.sh docker_test
 ```
 
 ![image](https://user-images.githubusercontent.com/68358404/121764817-bbfbe780-cb81-11eb-9502-0eeb5456c72e.png)
@@ -355,15 +383,15 @@ peer lifecycle chaincode install basic.tar.gz
 peer lifecycle chaincode queryinstalled
 ```
 
-![image](https://user-images.githubusercontent.com/68358404/121765976-adb1c980-cb89-11eb-86af-b841eac2989b.png)
+![image](https://user-images.githubusercontent.com/68358404/121978438-28b1f480-cdc3-11eb-9946-9ae73addf66b.png)
 
 패키지 아이디 복사
-basic_1.0:d3fa7d19384042eda5a9f5d8239dd64d4f1e0ca00e6e33759ddbc86bf7840a69
+basic_1.0:56c7ab51ebdb0530b36ee9ca0e624e2ae01807dc8793fe4475e2efc98bc7bd14
 
 체인 코드를 승인 할 때 패키지 ID를 사용할 것이므로 계속해서 환경 변수로 저장
 
 ```
-export CC_PACKAGE_ID=basic_1.0:d3fa7d19384042eda5a9f5d8239dd64d4f1e0ca00e6e33759ddbc86bf7840a69
+export CC_PACKAGE_ID=basic_1.0:56c7ab51ebdb0530b36ee9ca0e624e2ae01807dc8793fe4475e2efc98bc7bd14
 ```
 
 echo $CC_PACKAGE_ID 로 환경변수가 제대로 저장되었는지 확인 가능
