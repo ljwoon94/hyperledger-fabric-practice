@@ -738,7 +738,7 @@ MagnetoCorp Admin은 현재 PaperNet의 구성 요소를 모니터링 한다.
 
 ```
 cd commercial-paper/organization/magnetocorp
-./configuration/cli/monitordocker.sh fabric_test
+./configuration/cli/monitordocker.sh docker_test
 ```
 
 ![image](https://user-images.githubusercontent.com/68358404/121792806-561c6800-cc34-11eb-8d63-6213e5e1a0b9.png)
@@ -799,12 +799,12 @@ peer lifecycle chaincode queryinstalled
 
 체인코드 Package_id
 
-![image](https://user-images.githubusercontent.com/68358404/121793127-02f7e480-cc37-11eb-9766-6fb6c09c74d6.png)
+![image](https://user-images.githubusercontent.com/68358404/121982170-fd7ed380-cdc9-11eb-853a-2c480deb3ddc.png)
 
 Package_id 환경변수에 등록 echo $PACKAGE_ID로 등록됐는지 확인 가능
 
 ```
-export PACKAGE_ID=cp_0:df23cfaa2d118a48df5002d95521e14df1070e44d7858da6d2da2d9df3f138ce
+export PACKAGE_ID=cp_0:ddca913c004eb34f36dfb0b4c0bcc6d4afc1fa823520bb5966a3bfcf1808f40a
 ```
 
 체인코드 승인
@@ -848,7 +848,7 @@ peer lifecycle chaincode queryinstalled
 ```
 
 ```
-export PACKAGE_ID=cp_0:f2316bf21cdc9aa6c3650c815228f88b3ae20cd2a74f30a1db76f02be2c4d599
+export PACKAGE_ID=cp_0:ddca913c004eb34f36dfb0b4c0bcc6d4afc1fa823520bb5966a3bfcf1808f40a
 ```
 
 조직에 체인코드 승인
@@ -864,7 +864,7 @@ peer lifecycle chaincode approveformyorg --orderer localhost:7050 --ordererTLSHo
 체인코드가 채널에서 성공적으로 정의되면 채널의 클라이언트 애플리케이션에서 체인코드 CommercialPaper를 호출할 수 있다. DigiBank admin은 코드의 정의를 papercontract채널에 커밋한다.
 
 ```
-(digibank admin)$ peer lifecycle chaincode commit -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --peerAddresses localhost:7051 --tlsRootCertFiles ${PEER0_ORG1_CA} --peerAddresses localhost:9051 --tlsRootCertFiles ${PEER0_ORG2_CA} --channelID mychannel --name papercontract -v 0 --sequence 1 --tls --cafile $ORDERER_CA --waitForEvent
+peer lifecycle chaincode commit -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --peerAddresses localhost:7051 --tlsRootCertFiles ${PEER0_ORG1_CA} --peerAddresses localhost:9051 --tlsRootCertFiles ${PEER0_ORG2_CA} --channelID mychannel --name papercontract -v 0 --sequence 1 --tls --cafile $ORDERER_CA --waitForEvent
 ```
 
 ![image](https://user-images.githubusercontent.com/68358404/121794544-0a71ba80-cc44-11eb-96f8-c37a87c62c2e.png)
