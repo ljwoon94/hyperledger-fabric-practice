@@ -1471,7 +1471,7 @@ peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.exam
 
 ![image](https://user-images.githubusercontent.com/68358404/121998070-42b0fe80-cde6-11eb-830e-33b8b3a6302c.png)
 
-Org2가 공개 설명을 장난으로 변경하려고하면 어떻게되는지 본다.
+Org2가 공개 설명을 장난으로 변경하려고하면 어떻게 되는지 본다.
 
 ```
 peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ChangePublicDescription","Args":["asset1","the worst asset"]}'
@@ -1489,7 +1489,116 @@ peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.exa
 
  Org1 터미널에서 작동한다. Org1은 자산 가격을 110 달러로 설정하는 데 동의한다. trade_id는 구매자 또는 가격을 추측에서 판매되지 않는 채널 회원을 방지하기 위해 소금으로 사용된다. 이 값은 구매자와 판매자간에 이메일 또는 기타 통신을 통해 대역 외로 전달되어야한다. 구매자와 판매자는 채널의 다른 구성원이 판매 할 자산을 추측하지 못하도록 자산 키에 소금을 추가 할 수도 있다.
  
- ```
- export ASSET_PRICE=$(echo -n "{\"asset_id\":\"asset1\",\"trade_id\":\"109f4b3c50d7b0df729d299bc6f8e9ef9066971f\",\"price\":110}" | base64)
+```
+export ASSET_PRICE=$(echo -n "{\"asset_id\":\"asset1\",\"trade_id\":\"109f4b3c50d7b0df729d299bc6f8e9ef9066971f\",\"price\":110}" | base64 | tr -d \\n)
 peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"AgreeToSell","Args":["asset1"]}' --transient "{\"asset_price\":\"$ASSET_PRICE\"}"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122001591-82c6b000-cdeb-11eb-8191-7eb76b613b05.png)
+
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"GetAssetBidPrice","Args":["asset1"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122001637-9540e980-cdeb-11eb-9522-8b2b0f27c181.png)
+
+## 7-10-2. Org2으로 구매하는데 동의
+
+Org2 터미널에서 작동한다. 구매에 동의하기 전에 다음 명령을 실행하여 자산 속성을 확인. 자산 속성과 소금은 구매자와 판매자간에 이메일 또는 기타 통신을 통해 대역 외로 전달된다.
+
+```
+export ASSET_PROPERTIES=$(echo -n "{\"object_type\":\"asset_properties\",\"asset_id\":\"asset1\",\"color\":\"blue\",\"size\":35,\"salt\":\"a94a8fe5ccb19ba61c4c0873d391e987982fbbd3\"}" | base64 | tr -d \\n)
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"VerifyAssetProperties","Args":["asset1"]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\"}"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122001814-d6d19480-cdeb-11eb-8581-5786a83f62cf.png)
+
+ 다음 명령을 실행하여 asset1을 100 달러에 구매하는 데 동의한다. 현재 Org2는 Org2와 다른 가격에 동의한다. 두 조직은 향후 단계에서 동일한 가격에 동의 할 것이다. 그러나 우리는이 일시적인 불일치를 구매자와 판매자가 다른 가격에 동의하면 어떻게되는지 테스트 할 수 있다. Org2는 Org1과  trade_id 동일하게 사용 해야한다.
+ 
+```
+export ASSET_PRICE=$(echo -n "{\"asset_id\":\"asset1\",\"trade_id\":\"109f4b3c50d7b0df729d299bc6f8e9ef9066971f\",\"price\":100}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"AgreeToBuy","Args":["asset1"]}' --transient "{\"asset_price\":\"$ASSET_PRICE\"}"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122002827-34b2ac00-cded-11eb-924c-f5ab31a01608.png)
+
+
+Org2에서 합의 된 구매 가격을 읽을 수 있습니다.
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"GetAssetBidPrice","Args":["asset1"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122002956-5f046980-cded-11eb-9feb-299bece71990.png)
+
+## 7-11. Org1에서 Org2로 자산 이전
+
+ 두 조직이 가격에 동의 한 후 Org1은 자산을 Org2로 이전 할 수 있다. 스마트 계약의 개인 자산 이전 기능은 원장의 해시를 사용하여 두 조직이 동일한 가격에 동의했는지 확인한다. 이 함수는 또한 개인 자산 세부 정보의 해시를 사용하여 전송 된 자산이 Org1이 소유 한 자산과 동일한 지 확인한다.
+ 
+### 7-11-1. 자산을 Org1로 이전
+
+ Org1 터미널에서 작동한다. 자산 소유자가 이전을 시작 해야한다. 아래 명령어는 --peerAddresses플래그를 사용하여 Org1 및 Org2의 피어를 대상으로 한다. 두 조직 모두 이전을 승인해야한다. 또한 자산 속성 및 가격은 전송 요청에서 임시 속성으로 전달된다. 이는 현재 소유자가 올바른 자산이 올바른 가격으로 이전되었는지 확인할 수 있도록 전달된다. 이러한 속성은 두 보증인이 온 체인 해시에 대해 확인한다.
+
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"TransferAsset","Args":["asset1","Org2MSP"]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\",\"asset_price\":\"$ASSET_PRICE\"}" --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses localhost:9051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+```
+
+두 조직이 동일한 가격에 동의하지 않았기 때문에 이전을 완료 할 수 없다.
+
+![image](https://user-images.githubusercontent.com/68358404/122003416-05e90580-cdee-11eb-8364-ec8cf4129fe6.png)
+
+결과적으로 Org1과 Org2는 자산을 구매할 가격에 대한 새로운 계약을 맺는다. Org1은 자산 가격을 100으로 떨어 뜨린다.
+
+```
+export ASSET_PRICE=$(echo -n "{\"asset_id\":\"asset1\",\"trade_id\":\"109f4b3c50d7b0df729d299bc6f8e9ef9066971f\",\"price\":100}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"AgreeToSell","Args":["asset1"]}' --transient "{\"asset_price\":\"$ASSET_PRICE\"}"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122003639-506a8200-cdee-11eb-94d1-48b263de13d6.png)
+
+구매자와 판매자가 동일한 가격에 동의 했으므로 Org1은 자산을 Org2로 이전 할 수 있다.
+
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"TransferAsset","Args":["asset1","Org2MSP"]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\",\"asset_price\":\"$ASSET_PRICE\"}" --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses localhost:9051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122003706-6415e880-cdee-11eb-930c-8424dd72e5e8.png)
+
+저작물 소유권 레코드를 쿼리하여 이전이 성공했는지 확인할 수 있다.
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ReadAsset","Args":["asset1"]}'
+```
+
+이제 레코드에 Org2가 자산 소유자로 나열된다.
+
+![image](https://user-images.githubusercontent.com/68358404/122003821-8b6cb580-cdee-11eb-833e-f99cd67814d6.png)
+
+### 7-11-2. 자산 설명을 Org2로 업데이트
+
+ Org2 터미널에서 작동한다. 이제 Org2가 자산을 소유하고 있으므로 Org2에서 자산 세부 정보를 읽을 수 있다.
+ 
  ```
+ peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"GetAssetPrivateProperties","Args":["asset1"]}'
+ ```
+
+![image](https://user-images.githubusercontent.com/68358404/122004031-d5559b80-cdee-11eb-90d9-0c81d10e612f.png)
+
+Org2는 이제 자산 공개 설명을 업데이트 할 수 있다.
+
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ChangePublicDescription","Args":["asset1","This asset is not for sale"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122004432-5f9dff80-cdef-11eb-91b9-1bbdfb0f630e.png)
+
+원장을 질의하여 자산이 더 이상 판매되지 않는지 확인
+
+![image](https://user-images.githubusercontent.com/68358404/122004499-73e1fc80-cdef-11eb-9aa4-64a3a34d1d03.png)
+
+## 7-12. 네트워크 종료
+
+./network.sh down
+
+
