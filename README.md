@@ -1359,4 +1359,137 @@ peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.exam
  
 ## 7-5. 개인 자산 이전 스마트 계약 실행
 
-Fabric 테스트 네트워크를 사용하여 개인 자산 전송 스마트 계약을 실행할 수 있다. 테스트 네트워크에는 각각 하나의 피어를 운영하는 두 개의 피어 조직 Org1 및 Org2가 포함된다. 이 튜토리얼에서는 두 조직이 결합한 테스트 네트워크의 채널에 스마트 계약을 배포다. 먼저 Org1이 소유 한 자산을 생성합니다. 두 조직이 가격에 동의하면 자산을 Org1에서 Org2로 이전한다.
+ Fabric 테스트 네트워크를 사용하여 개인 자산 전송 스마트 계약을 실행할 수 있다. 테스트 네트워크에는 각각 하나의 피어를 운영하는 두 개의 피어 조직 Org1 및 Org2가 포함된다. 이 튜토리얼에서는 두 조직이 결합한 테스트 네트워크의 채널에 스마트 계약을 배포한다. 먼저 Org1이 소유 한 자산을 생성한다. 두 조직이 가격에 동의하면 자산을 Org1에서 Org2로 이전한다.
+
+## 7-6. 테스트 네트워크 배포
+
+```
+cd fabric-samples/test-network
+./network.sh down
+./network.sh up createChannel -c mychannel
+```
+
+## 7-7. 테스트 네트워크 배포
+
+테스트 네트워크 스크립트를 사용하여 보안 자산 전송 스마트 계약을 채널에 배포
+
+```
+./network.sh deployCC -ccn secured -ccp ../asset-transfer-secured-agreement/chaincode-go/ -ccl go -ccep "OR('Org1MSP.peer','Org2MSP.peer')"
+```
+
+## 7-8. Org1와 Org2로 작동하도록 환경 변수 2개 설정
+
+Org1
+
+```
+export PATH=${PWD}/../bin:${PWD}:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+새 터미널 열고 test-network에서 Org2 환경변수 설정
+
+```
+export PATH=${PWD}/../bin:${PWD}:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_ADDRESS=localhost:9051
+```
+
+## 7-9. 자산 생성
+
+ 모든 채널 구성원은 스마트 계약을 사용하여 조직이 소유 한 자산을 만들 수 있다. 자산의 세부 정보는 개인 데이터 컬렉션에 저장되며 자산을 소유 한 조직 만 액세스 할 수 있다. 자산, 소유자 및 공개 설명에 대한 공개 기록은 채널 원장에 저장된다. 모든 채널 회원은 공개 소유권 기록에 액세스하여 저작물 소유자를 확인할 수 있으며 설명을 읽고 저작물이 판매 중인지 확인할 수 있다.
+ 
+### 7-9-1. Org1 터미널에서 작동
+
+ 자산을 생성하기 전에 자산의 세부 사항을 지정해야한다. 다음 명령을 실행하여 자산을 설명하는 JSON을 생성한다. "salt"매개 변수는 원장의 해시를 사용하여 자산을 추측에서 채널의 다른 회원을 방해하는 임의의 문자열이다. 솔트가없는 경우 사용자는 추측의 해시와 원장의 해시가 일치 할 때까지 이론적으로 자산 매개 변수를 추측 할 수 있다 
+
+```
+export ASSET_PROPERTIES=$(echo -n "{\"object_type\":\"asset_properties\",\"asset_id\":\"asset1\",\"color\":\"blue\",\"size\":35,\"salt\":\"a94a8fe5ccb19ba61c4c0873d391e987982fbbd3\"}" | base64 | tr -d \\n)
+```
+
+Org1에 속하는 자산 생성
+
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"CreateAsset","Args":["asset1", "A new asset for Org1MSP"]}' --transient "{\"asset_properties\":\"$ASSET_PROPERTIES\"}"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121997482-632c8900-cde5-11eb-95e2-1b4af9b17700.png)
+
+Org1 생성된 자산 확인
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"GetAssetPrivateProperties","Args":["asset1"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121997570-8820fc00-cde5-11eb-9af1-14f8527a8c48.png)
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ReadAsset","Args":["asset1"]}'
+```
+
+원장을 쿼리하여 공용 소유권을 볼 수 있다.
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ReadAsset","Args":["asset1"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121997653-a981e800-cde5-11eb-8a88-67b08513bb94.png)
+
+ Org1은이 자산을 매각하려고한다. 자산 소유자로서 Org1은 자산이 판매중임을 알리기 위해 공개 설명을 업데이트 할 수 있습니다. 자산 설명을 변경하려면 다음 명령을 실행한다.
+ 
+ ```
+ peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ChangePublicDescription","Args":["asset1","This asset is for sale"]}'
+ ```
+ 
+ ![image](https://user-images.githubusercontent.com/68358404/121997760-d209e200-cde5-11eb-9e71-72928e065fe1.png)
+ 
+ 원장을 다시 물어 업데이트 된 설명을 확인
+ 
+ ```
+ peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ReadAsset","Args":["asset1"]}'
+ ```
+ 
+![image](https://user-images.githubusercontent.com/68358404/121997823-ecdc5680-cde5-11eb-9e20-62e5e9903c4c.png)
+
+### 7-9-2. Org2 터미널에서 작동
+
+Org2 터미널에서 작동하는 경우 스마트 계약을 사용하여 공용 자산 데이터를 쿼리 할 수 있다.
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ReadAsset","Args":["asset1"]}'
+```
+
+이 쿼리에서 Org2는 asset1이 판매 중임을 알게된다.
+
+![image](https://user-images.githubusercontent.com/68358404/121998070-42b0fe80-cde6-11eb-830e-33b8b3a6302c.png)
+
+Org2가 공개 설명을 장난으로 변경하려고하면 어떻게되는지 본다.
+
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"ChangePublicDescription","Args":["asset1","the worst asset"]}'
+```
+
+스마트 계약은 Org2가 자산의 공개 설명에 액세스하는 것을 허용하지 않는다.
+
+![image](https://user-images.githubusercontent.com/68358404/121998180-755af700-cde6-11eb-9018-0ca3022e1c5d.png)
+
+## 7-10. 자산 매각에 동의
+
+ 자산을 판매하려면 구매자와 판매자 모두 자산 가격에 동의해야한다. 각 당사자는 자신의 개인 데이터 수집에 동의 한 가격을 저장한다. 개인 자산 이전 스마트 계약은 자산을 이전하기 전에 양 당사자가 동일한 가격에 동의해야한다고 강제한다.
+
+## 7-10-1. Org1으로 판매하기로 동의
+
+ Org1 터미널에서 작동한다. Org1은 자산 가격을 110 달러로 설정하는 데 동의한다. trade_id는 구매자 또는 가격을 추측에서 판매되지 않는 채널 회원을 방지하기 위해 소금으로 사용된다. 이 값은 구매자와 판매자간에 이메일 또는 기타 통신을 통해 대역 외로 전달되어야한다. 구매자와 판매자는 채널의 다른 구성원이 판매 할 자산을 추측하지 못하도록 자산 키에 소금을 추가 할 수도 있다.
+ 
+ ```
+ export ASSET_PRICE=$(echo -n "{\"asset_id\":\"asset1\",\"trade_id\":\"109f4b3c50d7b0df729d299bc6f8e9ef9066971f\",\"price\":110}" | base64)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n secured -c '{"function":"AgreeToSell","Args":["asset1"]}' --transient "{\"asset_price\":\"$ASSET_PRICE\"}"
+ ```
