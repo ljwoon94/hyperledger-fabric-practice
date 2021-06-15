@@ -1179,3 +1179,63 @@ peer chaincode query -C mychannel -n private -c '{"function":"ReadAssetPrivateDe
 
 ![image](https://user-images.githubusercontent.com/68358404/121851253-de7c3500-cd28-11eb-82c9-f94ad0674fe8.png)
 
+## 6-8. 자산 양도
+
+asset1을 Org2로 이전 시켜본다. appraisedValue 을 옮기려면 자산을 구입하는데 동의가 필요하다.
+
+자산을 이전하려면 구매자 (수신자)가 appraisedValuechaincode 함수를 호출하여 자산 소유자 와 동일하게 동의해야한다.
+합의 된 값은 Org2MSPDetailsCollectionOrg2 피어 의 컬렉션에 저장
+
+```
+export ASSET_VALUE=$(echo -n "{\"assetID\":\"asset1\",\"appraisedValue\":100}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"AgreeToTransfer","Args":[]}' --transient "{\"asset_value\":\"$ASSET_VALUE\"}"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121986005-c5c75a00-cdd0-11eb-9498-d1eefef9db77.png)
+
+구매자는 이제 Org2 개인 데이터 수집에서 동의한 값을 쿼리 가능
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"ReadAssetPrivateDetails","Args":["Org2MSPPrivateCollection","asset1"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121986033-d4157600-cdd0-11eb-933f-bf03d23f2fcc.png)
+
+구매자가 평가 된 가치를 위해 자산을 구매하는 데 동의 했으므로 소유자는 자산을 Org2로 이전 할 수 있다. 자산은 자산을 소유 한 ID로 전송해야하므로 Org1으로 작동한다.
+
+```
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/owner@org1.example.com/msp
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+Org1의 소유자는 AgreeToTransfer 트랜잭션에서 추가 한 데이터를 읽고 구매자 ID를 볼 수 있다.
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"ReadTransferAgreement","Args":["asset1"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/121986157-03c47e00-cdd1-11eb-996d-0c4d00cd4a10.png)
+
+자산을 전송하려면 다음 명령을 실행, 소유자는 이전 거래에 구매자의 assetID 및 조직 MSP ID를 제공 해야한다.
+
+```
+export ASSET_OWNER=$(echo -n "{\"assetID\":\"asset1\",\"buyerMSP\":\"Org2MSP\"}" | base64 | tr -d \\n)
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"TransferAsset","Args":[]}' --transient "{\"asset_owner\":\"$ASSET_OWNER\"}" --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+```
+
+결과 이제 구매자 ID가 자산을 소유하고 있음을 보여준다.
+
+![image](https://user-images.githubusercontent.com/68358404/121986284-2ce50e80-cdd1-11eb-8211-a4d0e6ca67a7.png)
+
+
+트랜잭션이 Org1 컬렉션에서 비공개 세부 정보를 삭제했는지 확인가능
+
+```
+peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n private -c '{"function":"ReadAssetPrivateDetails","Args":["Org1MSPPrivateCollection","asset1"]}'
+```
+
+결과 
+
+![image](https://user-images.githubusercontent.com/68358404/121986510-949b5980-cdd1-11eb-9e16-b237bf7d286b.png)
