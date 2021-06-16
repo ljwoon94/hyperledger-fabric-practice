@@ -1065,7 +1065,7 @@ fabric-ca-client enroll -u https://owner:ownerpw@localhost:7054 --caname ca-org1
 노드 OU 구성 파일을 소유자 ID MSP 폴더에 복사한다.
 
 ```
-cp "${PWD}/organizations/peerOrganizations/org1.example.com/msp/config.yaml" "${PWD}/organizations/peerOrganizations/org1.example.com/users/owner@org1.example.com/msp/config.yaml"\
+cp "${PWD}/organizations/peerOrganizations/org1.example.com/msp/config.yaml" "${PWD}/organizations/peerOrganizations/org1.example.com/users/owner@org1.example.com/msp/config.yaml"
 ```
 
 Org2 CA를 사용하여 구매자 ID를 만들 수 있습니다. Fabric CA 클라이언트 홈을 Org2 CA 관리자로 설정
@@ -1304,6 +1304,8 @@ peer chaincode query -o localhost:7050 --ordererTLSHostnameOverride orderer.exam
 ```
 ./network.sh down
 ```
+
+------------------------------------------------
 
 ## 7-1. Fabric의 안전한 자산 전송
 
@@ -1601,4 +1603,90 @@ peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.exa
 
 ./network.sh down
 
+----------------------------------------------
 
+## 8-1. CouchDB
+
+ 하이퍼레저 패브릭은 CouchDB를 사용한다. Docker로 사용할 수 있으며, 피어와 동일한 서버에서 실행하는 것이 좋다.
+ CouchDB 켄테이너는 Core.yaml에서 설정해 피어 당 하나의 CouchDB를 할당하고, 각 피어 컨테이너를 업데이트 해야한다.
+ 
+## 8-2. 인덱스 만들기
+
+ mongoDB랑 유사하다. 
+
+- 예제
+
+ ![image](https://user-images.githubusercontent.com/68358404/122141369-1bab0900-ce88-11eb-9d4e-a790b4e28a95.png)
+
+인덱스를 만들고 난 후 체인코드가 있는 META-INF/statedb/couchdb/indexes 경로에 넣어 함께 패키징하고 설치할 수 있다.
+
+## 8-3. 네트워크 실행
+
+```
+cd ../asset-transfer-ledger-queries/chaincode-go
+GO111MODULE=on go mod vendor
+cd ../../test-network
+./network.sh up createChannel -s couchdb
+```
+
+## 8-4. 스마트 계약 배포
+
+mychannel에 스마트 계약 배포
+-ccep 플래그를 사용하여 “OR ( 'Org1MSP.peer', 'Org2MSP.peer')” 보증 정책으로 스마트 계약을 배포하고 있다. 이를 통해 어느 한 조직이 다른 조직의 보증을받지 않고도 자산을 만들 수 있다.
+
+```
+./network.sh deployCC -ccn ledger -ccp ../asset-transfer-ledger-queries/chaincode-go/ -ccl go -ccep "OR('Org1MSP.peer','Org2MSP.peer')"
+```
+
+## 8-5. 인덱스 배포되었는지 확인
+
+ 체인 코드가 피어에 설치되고 채널에 배포되면 인덱스가 각 피어의 CouchDB 상태 데이터베이스에 배포된다. Docker 컨테이너에서 피어 로그를 검사하여 CouchDB 인덱스가 성공적으로 생성되었는지 확인할 수 있다.
+ 
+ 피어 Docker 컨테이너의 로그를 보려면 새 터미널 창을 열고 다음 명령을 실행하여 인덱스가 생성되었다는 메시지 확인을 위해 grep한다.
+ 
+```
+docker logs peer0.org1.example.com 2>&1 | grep "CouchDB index"
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122141973-69744100-ce89-11eb-95ce-21943bbd567d.png)
+
+## 8-6. CouchDB 상태 데이터베이스 쿼리
+
+ 인덱스가 JSON 파일에 정의되고 체인 코드와 함께 배포되었으므로 체인 코드 함수는 CouchDB 상태 데이터베이스에 대해 JSON 쿼리를 실행할 수 있다. 쿼리에 인덱스 이름을 지정하는 것은 선택사항이다. 지정하지 않고 쿼리중인 필드에 대한 색인이 이미 존재하는 경우 기존 색인이 자동으로 사용된다.
+
+-Tip use_index 키워드를 사용하여 쿼리에 인덱스 이름을 명시적으로 포함하는 것이 좋다. 그것이 있으면 CouchDB는 최적의 인덱스를 선택할 수 있다. 또한 CouchDB는 인덱스를 전혀 사용하지 않을 수 있으며 테스트하는 동안 낮은 볼륨에서이를 인식하지 못할 수도 있다. 더 높은 볼륨에서만 CouchDB가 인덱스를 사용하지 않기 때문에 성능이 저하 될 수 있다.
+
+
+## 8-7. 체인 코드로 쿼리 작성
+
+ 체인 코드 내에 정의 된 쿼리를 사용하여 원장의 데이터에 대해 JSON 쿼리를 수행 할 수 있다. 자산 전송 원장 쿼리 샘플에는 2개의 JSON 쿼리 기능을 포함한다.
+ 
+* QueryAssets
+
+ 임시 JSON 쿼리. JSON 쿼리 문자열을 함수에 전달할 수있는 쿼리이다. 이 쿼리는 런타임에 고유 한 쿼리를 동적으로 빌드해야하는 클라이언트 응용 프로그램에 유용하다.
+
+* QueryAssetsByOwner
+
+ 매개 변수화 된 쿼리, 쿼리에 전달되는 쿼리 매개 변수를 chaincode에 정의할 수 있다. 함수가 단일 인수, 자산 소유자를 받아이 경우. 그런 다음 상태 데이터베이스에서 "asset"의 docType 및 JSON 쿼리 구문을 사용하여 소유자 ID와 일치하는 JSON 문서를 쿼리한다.
+
+## 8-8. peer 명령을 사용하여 쿼리 실행
+
+ 클라이언트 애플리케이션이없는 경우 peer 명령을 사용하여 체인 코드에 정의된 쿼리를 테스트 할 수 있다. 우리는 사용 피어 chaincode 쿼리 자산 인덱스(indexOwner)를 사용하는 명령 QueryAssets을 사용. 
+ 
+ 
+데이터베이스를 쿼리하기 전에 데이터를 추가해야합니다. 다음 명령을 Org1로 실행하여 "tom"이 소유 한 자산을 작성 해야한다.
+
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n ledger -c '{"Args":["CreateAsset","asset1","blue","5","tom","35"]}'
+```
+
+tom이 소유한 모든 자산을 띄우기.
+
+```
+peer chaincode query -C mychannel -n ledger -c '{"Args":["QueryAssets", "{\"selector\":{\"docType\":\"asset\",\"owner\":\"tom\"}, \"use_index\":[\"_design/indexOwnerDoc\", \"indexOwner\"]}"]}'
+```
