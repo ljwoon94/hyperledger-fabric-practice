@@ -1685,8 +1685,130 @@ export CORE_PEER_ADDRESS=localhost:7051
 peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n ledger -c '{"Args":["CreateAsset","asset1","blue","5","tom","35"]}'
 ```
 
+![image](https://user-images.githubusercontent.com/68358404/122149269-c4f8fb80-ce96-11eb-8b26-bb9cbeed9d09.png)
+
 tom이 소유한 모든 자산을 띄우기.
 
 ```
 peer chaincode query -C mychannel -n ledger -c '{"Args":["QueryAssets", "{\"selector\":{\"docType\":\"asset\",\"owner\":\"tom\"}, \"use_index\":[\"_design/indexOwnerDoc\", \"indexOwner\"]}"]}'
 ```
+
+위 쿼리 명령을 보면 세가지 인수가 있다.
+
+* QueryAssets
+
+ 자산 체인 코드에있는 함수의 이름입니다. 아래 chaincode 함수에서 볼 수 있듯이 QueryAssets()는 getQueryResultForQueryString()호출 한 다음 getQueryResult() 상태 데이터베이스에 대해 JSON 쿼리를 실행하는 shim API에 queryString을 전달한다.
+
+* {"selector":{"docType":"asset","owner":"tom"}
+
+* "use_index":["_design/indexOwnerDoc", "indexOwner"]
+
+ 디자인 문서 이름(indexOwnerDoc)과 인덱스 이름(indexOwner)을 모두 지정한다. selector 쿼리는 use_index 를 써서 인덱스 이름을 포한한다.
+디자인 문서 이름은 8-2. 인덱스 만들기 과정에서 들어간 "ddoc":"indexOwnerDoc" 을 사용한다. 이 둘을 사용해야 최적화가 된다.
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/122149290-cf1afa00-ce96-11eb-81c9-ee4a883279d8.png)
+
+## 8-8. 쿼리 및 인덱스에 대한 모범 사례 사용
+
+ 이 섹션의 예는 쿼리에서 인덱스를 사용하는 방법과 최상의 성능을 제공하는 쿼리 유형을 보여준다. 쿼리를 작성할 때 다음 사항을 기억해자.
+ 
+* 인덱스의 모든 필드는 인덱스를 사용할 쿼리의 selector 또는 sort sections 사용해야 한다.
+
+* 복잡한 쿼리는 성능이 떨어지고 인덱스를 사용할 가능성이 적습니다.
+
+* 전체 테이블 스캔하는 것, 또는 or, in, regex 같은 전체 인덱스 스캔을 발생시키는 연산자를 피해야한다.
+
+이전 섹션에서 자산 체인 코드에 대해 다음 쿼리를 실행했다.
+
+```
+// 전체 데이터베이스를 검색하지 않는 쿼리
+export CHANNEL_NAME=mychannel
+peer chaincode query -C $CHANNEL_NAME -n ledger -c '{"Args":["QueryAssets", "{\"selector\":{\"docType\":\"asset\",\"owner\":\"tom\"}, \"use_index\":[\"indexOwnerDoc\", \"indexOwner\"]}"]}'
+```
+
+```
+// 필드를 추가해도 최적화를 유지한다.
+peer chaincode query -C $CHANNEL_NAME -n ledger -c '{"Args":["QueryAssets", "{\"selector\":{\"docType\":\"asset\",\"owner\":\"tom\",\"color\":\"blue\"}, \"use_index\":[\"/indexOwnerDoc\", \"indexOwner\"]}"]}'
+```
+
+## 8-9. 페이징처리를 사용해  CouchDB 상태 데이터베이스 쿼리
+
+ QueryAssetsWithPagination을 사용하여 체인 코드 및 클라이언트 애플리케이션에서 페이징 처리를 구현
+ 
+ 데이터 4개 추가
+ 
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile  ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n ledger -c '{"Args":["CreateAsset","asset2","yellow","5","tom","35"]}'
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile  ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n ledger -c '{"Args":["CreateAsset","asset3","green","6","tom","20"]}'
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile  ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n ledger -c '{"Args":["CreateAsset","asset4","purple","7","tom","20"]}'
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile  ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n ledger -c '{"Args":["CreateAsset","asset5","blue","8","tom","40"]}'
+```
+
+ chaincode 함수에서 볼 수 있듯이 QueryAssetsWithPagination ()은를 호출
+ 
+![image](https://user-images.githubusercontent.com/68358404/122151508-a85ec280-ce9a-11eb-8086-3966f0e564bd.png)
+
+체인코드 실행 5개 데이터 중 3개만 출력
+
+```
+// page size of 3:
+peer chaincode query -C mychannel -n ledger -c '{"Args":["QueryAssetsWithPagination", "{\"selector\":{\"docType\":\"asset\",\"owner\":\"tom\"}, \"use_index\":[\"_design/indexOwnerDoc\", \"indexOwner\"]}","3",""]}'
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/122159853-ef07e900-cea9-11eb-8c19-98bad7e0cb6d.png)
+
+-Tip : 하이퍼레저 2.2버전에선 북마크 value랑 페이지 사이즈가 다르다 파라미터 변수 잘 확인하자.
+
+다음은 pageSize를 사용하여 QueryAssetsWithPagination을 호출하는 피어 명령이다.
+
+```
+peer chaincode query -C $CHANNEL_NAME -n ledger -c '{"Args":["QueryAssetsWithPagination", "{\"selector\":{\"docType\":\"asset\",\"owner\":\"tom\"}, \"use_index\":[\"_design/indexOwnerDoc\", \"indexOwner\"]}","3","g1AAAABJeJzLYWBgYMpgSmHgKy5JLCrJTq2MT8lPzkzJBYqzJRYXp5YYg2Q5YLI5IPUgSVawJIjFXJKfm5UFANozE8s"]}'
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/122160266-9e44c000-ceaa-11eb-8b46-810cc20704f7.png)
+
+마지막 명령은 책갈피와 pageSize를 사용하여 QueryAssetsWithPagination을 호출하는 피어 명령
+ 
+ ```
+peer chaincode query -C $CHANNEL_NAME -n ledger -c '{"Args":["QueryAssetsWithPagination", "{\"selector\":{\"docType\":\"asset\",\"owner\":\"tom\"}, \"use_index\":[\"_design/indexOwnerDoc\", \"indexOwner\"]}","3","g1AAAABJeJzLYWBgYMpgSmHgKy5JLCrJTq2MT8lPzkzJBYqzJRYXp5aYgmQ5YLI5IPUgSVawJIjFXJKfm5UFANqBE80"]}'
+ ```
+ 
+ 결과
+ 
+![image](https://user-images.githubusercontent.com/68358404/122161412-a30a7380-ceac-11eb-83df-1a53dacdfa99.png)
+
+## 8-10. 인덱스 업데이트
+
+-tip: http://localhost:5984/_utils 에 접속하면 데이터 베이스 GUI 가 있다.
+
+다음은 데이터베이스에 인덱스를 생성하는  사용할 수있는 curl 명령의 예 이다. mychannel_ledger
+
+```
+curl -i -X POST -H "Content-Type: application/json" -d"{\"index\":{\"fields\":[\"docType\",\"owner\"]},\"name\":\"indexOwner\",\"ddoc\":\"indexOwnerDoc\",\"type\":\"json\"}" http://admin:adminpw@localhost:5984/mychannel_ledger/_index
+```
+
+## 8-10. 인덱스 삭제
+
+예제
+
+```
+ curl -X DELETE http://localhost:5984/{database_name}/_index/{design_doc}/json/{index_name} -H  "accept: */*" -H  "Host: localhost:5984"
+```
+
+튜토리얼 기준 인덱스 삭제
+
+```
+curl -X DELETE http://admin:adminpw@localhost:5984/mychannel_ledger/_index/indexOwnerDoc/json/indexOwner -H  "accept: */*" -H  "Host: localhost:5984"
+```
+
