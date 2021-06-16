@@ -1873,3 +1873,105 @@ configtxgen도구는 TwoOrgsOrdererGenesis 채널 프로필을 사용하여 conf
  Orderer: 프로필의 섹션은 테스트 네트워크에서 사용하는 단일 노드 Raft 주문 서비스를 생성하면 OrdererOrg 주문 서비스 관리자입니다. Consortiums프로파일의 섹션은 이름이 피어 기관의 컨소시엄을 생성한다 SampleConsortium:. 피어 조직인 Org1과 Org2는 모두 컨소시엄의 구성원이다. 결과적으로 테스트 네트워크에서 만든 새로운 채널에 두 조직을 모두 포함 할 수 있다. 컨소시엄에 해당 조직을 추가하지 않고 다른 조직을 채널 구성원으로 추가하려는 경우 먼저 Org1 및 Org2로 채널을 만든 다음 채널 구성 을 업데이트하여 다른 조직을 추가해야 한다.
 
 ## 9-5. 응용 프로그램 채널 만들기
+
+다음 명령을 실행하여에 대한 채널 생성 트랜잭션을 만든다.
+
+```
+configtxgen -profile TwoOrgsChannel -outputCreateChannelTx ./channel-artifacts/channel1.tx -channelID channel1
+```
+
+-channelID미래 채널의 이름 이 됩니다. 채널 이름은 모두 소문자이고 250 자 미만이어야하며 정규 표현식과 일치해야한다.
+
+![image](https://user-images.githubusercontent.com/68358404/122168179-e833a300-ceb6-11eb-8c1c-3d00d513a2d8.png)
+
+ 프로필 SampleConsortium은 시스템 채널 의 이름을 참조하고 컨소시엄의 두 피어 조직을 채널 구성원으로 포함한다. 시스템 채널은 애플리케이션 채널을 생성하는 템플릿으로 사용되기 때문에 시스템 채널에 정의 된 순서 지정 노드 는 새 채널 의 기본 동의자 집합 이되고, Order 지정 서비스의 관리자는 채널의 순서 지정 관리자가됩니다. 채널 업데이트를 사용하여 동의자 집합에서 Order 노드 및 Order 조직을 추가하거나 제거 할 수 있다.
+
+ 결과
+ 
+![image](https://user-images.githubusercontent.com/68358404/122168535-5e380a00-ceb7-11eb-907a-79c9f3765bc3.png)
+
+peerCLI를 사용하여 채널 생성 트랜잭션을 Order 서비스에 제출할 수 있다 . peerCLI  사용하려면을 디렉토리에 FABRIC_CFG_PATH있는 core.yaml파일 로 설정해야한다.
+
+```
+export FABRIC_CFG_PATH=$PWD/../config/
+```
+
+주문 서비스가 채널을 생성하기 전에 주문 서비스는 요청을 제출 한 ID의 권한을 확인한다. 기본적으로 시스템 채널 컨소시엄에 속한 조직의 관리자 ID 만 새 채널을 만들 수 있다. peerOrg1에서 관리자로 CLI 를 작동하려면 아래 명령 을 실행한다.
+
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+이제 다음 명령을 사용하여 채널을 만들 수 있다.
+-f 를 사용하여 채널 생성 트랜잭션 파일의 경로를 제공하고 -c 를 사용하여 채널 이름을 지정한다. -o 는 채널을 생성하는데 사용되는 순서 노드를 선택하는데 사용된다. --cafile은 주문 노드의 TLS 인증서의 경로이다. 명령을 실행하면 CLI가 다음 응답을 생성한다.
+
+```
+peer channel create -o localhost:7050  --ordererTLSHostnameOverride orderer.example.com -c channel1 -f ./channel-artifacts/channel1.tx --outputBlock ./channel-artifacts/channel1.block --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/122169155-0d74e100-ceb8-11eb-92e1-4601f1a227fd.png)
+
+## 9-6. 채널에 동료 가입
+
+ 채널이 생성되면 동료와 함께 채널에 참여할 수 있다. 채널의 구성원 인 조직은 peer channel fetch 명령을 사용하여 순서 지정 서비스에서 채널 생성 블록을 가져올 수 있다. 그런 다음 조직은 제네시스 블록을 사용하여 peer channel join 명령을 사용하여 피어를 채널에 조인 할 수 있다. 피어가 채널에 가입되면 피어는 주문 서비스에서 채널의 다른 블록을 검색하여 블록 체인 원장을 구축한다. 
+ 이미 peerOrg1 관리자로 CLI를 운영하고 있으므로 Org1 피어를 채널에 가입시켜 보겠다. Org1이 채널 생성 트랜잭션을 제출했기 때문에 파일 시스템에 이미 채널 생성 블록이 있습니다. 아래 명령을 사용하여 Org1 피어를 채널에 가입시킨다.
+ 
+![image](https://user-images.githubusercontent.com/68358404/122170010-0b5f5200-ceb9-11eb-8547-09626e6845dd.png)
+
+peer channel getinfo 명령을 사용하여 피어가 채널에 참여했는지 확인할 수 있다.
+
+```
+peer channel getinfo -c channel1
+```
+
+ 이 명령은 채널의 블록 높이와 가장 최근 블록의 해시를 나열한다. 제네시스 블록이 채널의 유일한 블록이기 때문에 채널의 높이는 1이 된다.
+
+![image](https://user-images.githubusercontent.com/68358404/122170186-3ea1e100-ceb9-11eb-89b4-42b7affee6f8.png)
+
+이제 Org2 피어를 채널에 가입시킬 수 있다. peerOrg2 관리자로 CLI 를 작동하려면 다음 환경 변수를 설정한다. 환경 변수는 또한 Org2 피어를 peer0.org1.example.com대상 피어로 설정한다.
+
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051
+```
+
+파일 시스템에 여전히 채널 생성 블록이 있지만보다 현실적인 시나리오에서는 Org2가 주문 서비스에서 블록을 가져 오게된다.
+
+```
+peer channel fetch 0 ./channel-artifacts/channel_org2.block -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com -c channel1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/122170661-cc7dcc00-ceb9-11eb-81d8-516d6a49b432.png)
+
+파일 시스템에 여전히 채널 생성 블록이 있지만보다 현실적인 시나리오에서는 Org2가 주문 서비스에서 블록을 가져 오게된다. 예를 들어, 다음 명령을 사용하여 Org2의 제네시스 블록을 가져온다.
+
+```
+peer channel join -b ./channel-artifacts/channel_org2.block
+```
+
+ 명령은 0채널에 참여하는 데 필요한 제네시스 블록을 가져와야 함을 지정하는 데 사용한다. 명령이 성공하면 다음 출력이 표시되어야한다.
+
+결과
+
+![image](https://user-images.githubusercontent.com/68358404/122170701-d7386100-ceb9-11eb-8ee7-71885bf402e8.png)
+
+이 명령은 채널 생성 블록을 반환하고 이름을 지정 channel_org2.block하여 org1에서 가져온 블록과 구별합니다. 이제 블록을 사용하여 Org2 피어를 채널에 연결할 수 있다.
+
+```
+![image](https://user-images.githubusercontent.com/68358404/122171143-5a59b700-ceba-11eb-823d-87b8e9177cee.png)
+```
+
+## 9-7. 앵커 피어 설정
+
+
