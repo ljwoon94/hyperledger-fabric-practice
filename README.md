@@ -1812,3 +1812,64 @@ curl -i -X POST -H "Content-Type: application/json" -d"{\"index\":{\"fields\":[\
 curl -X DELETE http://admin:adminpw@localhost:5984/mychannel_ledger/_index/indexOwnerDoc/json/indexOwner -H  "accept: */*" -H  "Host: localhost:5984"
 ```
 
+----------------------------------------------
+
+## 9-1 새 채널 만들기
+ 
+ 이 튜토리얼를 사용하여 configtxgen CLI 도구를 사용하여 새 채널을 생성하는 방법을 배우고 피어 채널 명령을 사용하여 피어와 채널 에 참여할 수 있다. 이 튜토리얼은 패브릭 테스트 네트워크를 활용하여 새 채널을 생성하지만이 튜토리얼의 단계는 프로덕션 환경에서 네트워크 운영자가 사용할 수도 있다.
+ 
+## 9-2 configtxgen 도구 설정
+ 채널 생성 트랜잭션을 작성하고 Oderer에 트랜잭션을 제출하여 채널을 생성한다. 채널 생성 트랜잭션은 채널의 초기 구성을 지정하며 주문 서비스에서 채널 생성 블록을 작성하는 데 사용된다. 채널 생성 트랜잭션 파일을 수동으로 빌드 할 수 있지만 configtxgen 도구 를 사용하는 것이 더 쉽다. 채널 구성을 정의하는 파일(configtx.yaml)을 읽은 다음 관련 정보를 채널 생성 트랜잭션에 쓰는 방식으로 작동한다.
+ 
+```
+cd fabric-samples/test-network
+export PATH=${PWD}/../bin:$PATH
+export FABRIC_CFG_PATH=${PWD}/configtx
+```
+
+export PATH=${PWD}/../bin:$PATH 를 사용해, configtxgen 도구를 CLI 경로에 추가
+configtxgen을 사용하려면 FABRIC_CFG_PATH환경 변수를 configtx.yaml파일 의 로컬 사본이 포함 된 디렉토리 경로로 설정
+
+## 9-3 configtx.yaml 파일
+
+ configtx.yaml파일은 새 채널의 채널 구성을 지정한다. 채널 구성을 빌드하는데 필요한 정보는 configtx.yaml파일 에서 읽기 및 편집 가능한 형식으로 지정된다. 이 configtxgen도구는 configtx.yaml파일에 정의 된 채널 프로필 을 사용하여 채널 구성을 만들고 Fabric에서 읽을 수있는 protobuf 형식으로 작성한다.
+ 
+ 디렉터리 configtx.yaml의 configtx폴더에서 테스트 네트워크를 배포하는데 사용되는 파일을 찾을 수 있다. 파일에는 새 채널을 만드는 데 사용할 다음 정보가 포함되어 있습니다.
+
+Organization : 채널의 회원이 될 수있는 조직이다. 각 조직에는 채널 MSP 를 구축하는 데 사용되는 암호화 자료에 대한 참조가 있다.
+
+Ordering Service : 어떤 주문 노드가 네트워크의 주문 서비스를 구성 할 것인지, 공통 거래 순서에 동의하는 데 사용할 합의 방법. 파일에는 주문 서비스 관리자가 될 조직도 포함된다.
+
+채널 정책 : 파일의 여러 섹션이 함께 작동하여 조직이 채널과 상호 작용하는 방식과 채널 업데이트를 승인해야하는 조직을 제어하는 정책을 정의한다. 이 자습서에서는 Fabric에서 사용하는 기본 정책을 사용한다.
+
+채널 프로필: 각 채널 프로필은 configtx.yaml파일 의 다른 섹션에서 가져온 정보를 참조 하여 채널 구성을 만든다. 프로파일은 주문자 시스템 채널의 생성 블록과 피어 조직에서 사용할 채널을 만드는 데 사용된다. 시스템 채널과 구별하기 위해 피어 조직에서 사용하는 채널을 종종 애플리케이션 채널이라고 한다.
+
+이 configtxgen도구는 configtx.yaml파일을 사용하여 시스템 채널에 대한 완전한 생성 블록을 만듭니다. 따라서 시스템 채널 프로필은 전체 시스템 채널 구성을 지정해야한다. 채널 생성 트랜잭션을 만드는 데 사용되는 채널 프로필에는 응용 프로그램 채널을 만드는 데 필요한 추가 구성 정보만 있으면 된다.
+
+## 9-4. 네트워크 시작
+
+ configtx.yaml파일에 정의 된 두 개의 피어 조직과 단일 주문 조직으로 패브릭 네트워크를 생성 합니다. 피어 조직은 각각 하나의 피어를 운영하고 주문 서비스 관리자는 단일 주문 노드를 운영한다.
+ 
+```
+./network.sh up
+```
+
+## 9-5. 주문자 시스템 채널
+
+ 패브릭 네트워크에서 생성되는 첫 번째 채널은 시스템 채널이다. 시스템 채널은 order 서비스를 형성하는 order node 세트와 order 서비스 관리자 역할을 하는 조직 세트를 정의합니다.
+ 
+ 시스템 채널에는 블록 체인 컨소시엄의 구성원 인 조직도 포함된다 . 컨소시엄은 시스템 채널에 속하지만 주문 서비스의 관리자가 아닌 피어 조직의 집합이다. 컨소시엄 구성원은 새 채널을 만들고 다른 컨소시엄 조직을 채널 구성원으로 포함 할 수 있다.
+ 
+ 새로운 주문 서비스를 배포하려면 시스템 채널의 제네시스 블록이 필요하다. 테스트 네트워크 스크립트는 명령 을 실행할 때 이미 시스템 채널 생성 블록을 생성했다 . 제네시스 블록은 단일 주문 노드를 배포하는 데 사용되었으며 블록을 사용하여 시스템 채널을 만들고 네트워크의 주문 서비스를 구성했다. 
+ 
+```
+configtxgen -profile TwoOrgsOrdererGenesis -channelID system-channel -outputBlock ./system-genesis-block/genesis.block
+```
+
+configtxgen도구는 TwoOrgsOrdererGenesis 채널 프로필을 사용하여 configtx.yaml생성 블록을 작성하고 system-genesis-block폴더에 저장했다. TwoOrgsOrdererGenesis아래 프로필을 볼 수 있다.
+
+![image](https://user-images.githubusercontent.com/68358404/122166874-2203aa00-ceb5-11eb-9063-0718f3e363d2.png)
+
+ Orderer: 프로필의 섹션은 테스트 네트워크에서 사용하는 단일 노드 Raft 주문 서비스를 생성하면 OrdererOrg 주문 서비스 관리자입니다. Consortiums프로파일의 섹션은 이름이 피어 기관의 컨소시엄을 생성한다 SampleConsortium:. 피어 조직인 Org1과 Org2는 모두 컨소시엄의 구성원이다. 결과적으로 테스트 네트워크에서 만든 새로운 채널에 두 조직을 모두 포함 할 수 있다. 컨소시엄에 해당 조직을 추가하지 않고 다른 조직을 채널 구성원으로 추가하려는 경우 먼저 Org1 및 Org2로 채널을 만든 다음 채널 구성 을 업데이트하여 다른 조직을 추가해야 한다.
+
+## 9-5. 응용 프로그램 채널 만들기
