@@ -2290,4 +2290,257 @@ Organizations : 섹션 의 OrdererOrg 는 주문 서비스의 유일한 관리�
 
 Channel/Orderer/BlockValidation정책은 피어가 채널에 추가되는 새 블록이 채널 동의자 집합의 일부인 주문 노드에 의해 생성되었으며 블록이 다른 피어 조직에 의해 변조되거나 생성되지 않았음을 확인하는 데 사용된다. 기본적으로 Writers서명 정책 이있는 모든 주문자 조직 은 채널에 대한 블록을 만들고 유효성을 검사 할 수 있다.
 
+## 10-1. 채널에 조직 추가
 
+  이 튜토리얼은 애플리케이션 채널에 새로운 조직 (Org3)을 추가하여 패브릭 테스트 네트워크를 확장한다. 
+  
+## 10-2. 환경 설정
+
+테스트 네트워크 channel1 생성
+
+```
+cd fabric-samples/test-network
+./network.sh down
+./network.sh up createChannel -c channel1
+```
+
+## 10-3. 스크립트를 사용하여 Org3을 채널로 가져오기
+
+```
+cd addOrg3
+./addOrg3.sh up -c channel1
+```
+
+Org3 암호화 자료가 생성되고 Org3 조직 정의가 생성된 다음 채널 구성이 업데이트되고 서명된 다음 채널에 제춸되는 것을 볼 수 있다.
+
+이제 채널에 Org3를 추가할 수 있음을 확인했으므로 스크립트가 백그라운드에서 완료한 채널 구성을 업데이트하는 단계를 수행 할 수 있다.
+
+## 10-4. Org3을 채널에 수동으로 가져오기
+
+ 방금 addOrg3.sh스크립트를 사용한 경우 네트워크를 중단해야합니다. 다음 명령은 실행중인 모든 구성 요소를 종료하고 모든 조직의 암호화 자료를 제거한다.
+
+```
+cd ..
+./network.sh down
+```
+
+네트워크가 중단되면 다시 활성화한다.
+
+```
+./network.sh up createChannel -c channel1
+```
+
+그러면 네트워크가 addOrg3.sh스크립트 를 실행하기 전과 동일한 상태로 돌아간다.
+이제 수동으로 Org3를 채널에 추가 할 준비가되었다. 첫 번째 단계로 Org3의 암호화 자료를 생성한다.
+
+## 10-5. Org3 암호화 자료 생성
+
+```
+cd addOrg3
+```
+ 
+먼저 응용 프로그램 및 관리자 사용자와 함께 Org3 피어에 대한 인증서 및 키를 생성한다. 예제 채널을 업데이트하고 있기 때문에 인증 기관을 사용하는 대신 cryptogen 도구를 사용할 것이다. 
+ 다음 명령은 org3-crypto.yaml cryptogen을 사용하여 파일을 읽고 새 org3.example.com폴더 에 Org3 암호화 자료를 생성한다.
+ 
+```
+../../bin/cryptogen generate --config=org3-crypto.yaml --output="../organizations"
+```
+
+test-network/organizations/peerOrganizations 디렉토리에서 Org1 및 Org2에 대한 인증서 및 키와 함께 생성 된 Org3 암호화 자료를 찾을 수 있다.
+
+ Org3 암호화 자료를 생성했으면 configtxgen 도구를 사용하여 Org3 조직 정의를 인쇄 할 수 있습니다. configtx.yaml가 수집해야하는 파일을 현재 디렉토리에서 찾도록 지시하여 명령을 시작한다.
+ 
+```
+export FABRIC_CFG_PATH=$PWD
+../../bin/configtxgen -printOrg Org3MSP > ../organizations/peerOrganizations/org3.example.com/org3.json
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122335050-a584d000-cf75-11eb-84d9-5458a9442774.png)
+
+위의 명령은 JSON 파일을 만들고 – org3.json– test-network/organizations/peerOrganizations/org3.example.com 폴더에 쓴다. 조직 정의에는 Org3에 대한 정책 정의, Org3에 대한 NodeOU 정의 및 base64 형식으로 인코딩 된 두 개의 중요한 인증서가 포함된다.
+
+* 조직의 신뢰 루트를 설정하는 데 사용되는 CA 루트 인증서
+* 블록 보급 및 서비스 검색을 위해 Org3를 식별하기 위해 가십 프로토콜에서 사용하는 TLS 루트 인증서
+
+이 조직 정의를 채널 구성에 추가하여 Org3을 채널에 추가한다.
+
+## 10-6. Org3 구성 요소 불러오기
+
+Org3 인증서 자료를 만든 후 이제 Org3 피어를 가져올 수 있습니다. 로부터 addOrg3디렉토리, 다음 명령을 실행
+
+```
+docker-compose -f docker/docker-compose-org3.yaml up -d
+```
+
+명령이 성공하면 Org3 피어가 생성 된 것을 볼 수 있다.
+
+![image](https://user-images.githubusercontent.com/68358404/122336031-27c1c400-cf77-11eb-9c94-fbeadc1248de.png)
+
+----------------------------------------------
+
+-tip 밑의 사진과 에러가 발생 시
+
+![image](https://user-images.githubusercontent.com/68358404/122336072-37d9a380-cf77-11eb-9951-d4d4258664cf.png)
+
+```
+export IMAGE_TAG=latest
+docker-compose -f docker/docker-compose-org3.yaml up -d
+```
+
+--------------------------------------------------
+
+
+## 10-7. 구성 가져오기
+
+ 채널에 대한 가장 최근의 구성 블록을 가져온다. 최신 버전의 구성을 가져와야하는 이유는 채널 구성 요소의 버전이 지정 되었기 때문입니다. 버전 관리는 여러 가지 이유로 중요합니다. 구성 변경이 반복되거나 재생되는 것을 방지한다. 또한 동시성을 보장하는 데 도움이 된다.
+ 
+ Org3은 아직 채널의 구성원이 아니기 때문에 채널 구성을 가져 오려면 다른 조직의 관리자로 작동해야한다. Org1은 채널의 구성원이므로 Org1 관리자는 주문 서비스에서 채널 구성을 가져올 수있는 권한이 있다. Org1 관리자로 작동하려면 다음 명령을 실행한다.
+ 
+```
+cd ../
+export PATH=${PWD}/../bin:$PATH
+export FABRIC_CFG_PATH=${PWD}/../config/
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+이제 최신 구성 블록을 가져 오는 명령을 실행가능
+
+```
+peer channel fetch config channel-artifacts/config_block.pb -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com -c channel1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+이 명령은 바이너리 protobuf 채널 구성 블록을 config_block.pb에 저장한다. 이름과 파일 확장자는 임의로 선택할 수 있습니다. 그러나 표현되는 객체 유형과 인코딩 (protobuf 또는 JSON)을 모두 식별하는 규칙을 따르는 것이 좋다.
+
+![image](https://user-images.githubusercontent.com/68358404/122336426-d108ba00-cf77-11eb-947b-26ff630d7fe4.png)
+
+ 채널 1에 대한 가장 최근의 구성 블록이 실제로 genesis 블록이 아닌 블록 2라는 것을 말해준다. 기본적으로 peer channel fetch config 명령은 대상 채널에 대한 최신 구성 블록을 반환한다. 이 경우 세 번째 블록이다. 이는 테스트 네트워크 스크립트인 network.sh이 두 개의 별도 채널 업데이트 트랜잭션에서 Org1과 Org2의 앵커 피어를 정의했기 때문이다. 그 결과 다음과 같은 구성 시퀀스가 제공된다.
+
+블록 0: 제네시스 블록
+블록 1: Org1 앵커 피어 업데이트
+블록 2: Org2 앵커 피어 업데이트
+
+## 10-7. 구성을 JSON으로 변환하고 잘라내기
+
+ 채널 구성 블록은 channel-artifacts 다른 아티팩트와 별도로 업데이트 프로세스를 유지하기 위해 폴더에 저장되었다 . channel-artifacts 다음 단계를 완료 하려면 폴더로 변경한다.
+ configtxlator도구를 사용하여 채널 구성 블록을 JSON 형식 (사람이 읽고 수정할 수 있음)으로 디코딩한다. 또한 변경하려는 변경과 관련이없는 헤더, 메타 데이터, 작성자 서명 등을 모두 제거해야한다.
+ 
+```
+cd ./channel-artifacts
+configtxlator proto_decode --input config_block.pb --type common.Block --output config_block.json
+jq .data.data[0].payload.data.config config_block.json > config.json
+```
+
+이 명령 config.json을 사용하면 구성 업데이트의 기준이 될 JSON 개체가 줄어든다. vscode로 한번 확인
+
+## 10-8. Org3 암호화 자료 추가
+ 
+jq도구를 다시 한 번 사용하여 Org3 구성 정의 Org3.json을 채널의 애플리케이션 그룹 필드에 추가하고 출력 이름을 –modified_config.json.으로 지정한다.
+
+```
+jq -s '.[0] * {"channel_group":{"groups":{"Application":{"groups": {"Org3MSP":.[1]}}}}}' config.json ../organizations/peerOrganizations/org3.example.com/org3.json > modified_config.json
+```
+
+이제 관심 있는 두 개의 JSON 파일(config.json 및 modified_config.json)이 있다. 초기 파일은 Org1과 Org2 재료만 포함하지만, "수정된" 파일은 3개의 조직이 모두 포함된다. 이 시점에서는 이 두 JSON 파일을 다시 인코딩하고 델타를 계산하기만 하면 된다.
+
+먼저 config.json을 config.pb라는 protobuf로 다시 변환한다.
+
+```
+configtxlator proto_encode --input config.json --type common.Config --output config.pb
+```
+
+다음으로 modified_config.json을 modified_config.pb로 인코딩한다.
+
+```
+configtxlator proto_encode --input config.json --type common.Config --output config.pb
+
+```
+
+
+다음, 인코딩 modified_config.json에 modified_config.pb :
+
+```
+configtxlator proto_encode --input modified_config.json --type common.Config --output modified_config.pb
+```
+
+이제 configtxlator를 사용하여이 두 구성 protobufs 간의 델타를 계산합니다. 이 명령은 org3_update.pb라는 새 protobuf 바이너리를 출력한다.
+
+```
+configtxlator compute_update --channel_id channel1 --original config.pb --updated modified_config.pb --output org3_update.pb
+```
+
+ 이 새로운 proto – org3_update.pb –에는 Org3 정의와 Org1 및 Org2 자료에 대한 상위 수준 포인터가 포함되어 있다. Org1 및 Org2에 대한 광범위한 MSP 자료 및 수정 정책 정보는이 데이터가 이미 채널의 제네시스 블록 내에 존재하기 때문에 무시할 수 있습니다. 따라서 두 구성 사이의 델타 만 필요합니다.
+
+채널 업데이트를 제출하기 전에 몇 가지 마지막 단계를 수행해야한다. 먼저 이 객체를 편집 가능한 JSON 형식으로 디코딩하고 이름을 org3_update.json으로 지정한다.
+
+```
+configtxlator proto_decode --input org3_update.pb --type common.ConfigUpdate --output org3_update.json
+```
+
+이제, 우리는 봉투(envelope) 메시지로 포장해야 하는 디코딩된 업데이트 파일(org3_update.json)을 가지고 있다. 이 단계를 통해 이전에 제거했던 헤더 필드를 다시 얻을 수 있습니다. 이 파일의 이름을 org3_update_in_envelope.json으로 지정한다.
+
+```
+echo '{"payload":{"header":{"channel_header":{"channel_id":"'channel1'", "type":2}},"data":{"config_update":'$(cat org3_update.json)'}}}' | jq . > org3_update_in_envelope.json
+```
+
+올바르게 구성된 JSON(org3_update_in_envelope.json)을 사용하여 configtxlator 도구를 마지막으로 한 번 더 활용하고 Fabric에 필요한 전체 프로토버프 형식으로 변환합니다. 최종 업데이트 개체의 이름을 org3_update_in_envelope.pb:
+
+```
+configtxlator proto_encode --input org3_update_in_envelope.json --type common.Envelope --output org3_update_in_envelope.pb
+```
+
+## 10-9. 구성 업데이트 서명 및 제출
+
+ 거의 완료되었다. protobuf 바이너리 – org3_update_in_envelope.pb가 있다. 그러나 구성을 원장에 기록하려면 필수 관리자 사용자의 서명이 필요하다. 채널 애플리케이션 그룹에 대한 수정 정책 (mod_policy)은 기본값 인 "MAJORITY"로 설정 되어있으며 이는 기존 조직 관리자의 대다수가 서명해야 함을 의미한다. Org1과 Org2라는 두 개의 조직만 있고 두 개의 대부분이 2 개이므로 서명하려면 둘 다 필요합니다. 두 서명이 모두 없으면 order 서비스는 정책을 이행하지 못한 트랜재션을 거부합니다.
+
+먼저이 업데이트 proto에 Org1으로 서명하겠다. 테스트 네트워크 디렉토리로 다시 이동한다.
+
+Org1 관리자로 작동하는데 필요한 환경 변수를 설정한다. 결과적으로 다음 peer channel signconfigtx 명령은 업데이트에 Org1로 서명한다.
+
+```
+cd ../
+peer channel signconfigtx -f channel-artifacts/org3_update_in_envelope.pb
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122346312-c7854f00-cf83-11eb-9a9d-6f0a677ebeb6.png)
+
+마지막 단계는 Org2 Admin 사용자를 반영하도록 컨테이너의 ID를 전환하는 것입니다. Org2 MSP에 특정한 네 가지 환경 변수를 내 보내면 된다.
+
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051
+```
+
+마지막으로 명령을 내립니다. Org2 Admin 서명이이 호출에 첨부되므로 protobuf에 두 번째로 수동으로 서명할 필요가 없다.
+
+```
+peer channel update -f channel-artifacts/org3_update_in_envelope.pb -c channel1 -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122346591-192dd980-cf84-11eb-912a-b05e7cefe756.png)
+
+ 성공적인 채널 업데이트 호출은 채널의 모든 피어에 새 블록 (블록 3)을 반환한다. 기억한다면 블록 0-2는 초기 채널 구성이다. 블록 3은 현재 채널에 정의된 Org3과 함께 최신 채널 구성으로 사용된다.
+
+다음 명령을 실행하여 peer0.org1.example.com의 로그를 검사 할 수 있습니다.
+
+```
+docker logs -f peer0.org1.example.com
+```
+
+## 10-10. 채널에 Org3 가입
+
+이 시점에서 채널 구성은 새로운 조직인 Org3을 포함하도록 업데이트되었습니다. 즉, 연결된 피어가 이제 channel1에 가입 할 수 있습니다. Org3 관리자로 작동하도록 다음 환경 변수 설정.
+
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org3MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org3.example.com/peers/peer0.org3.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org3.example.com/users/Admin@org3.example.com/msp
+export CORE_PEER_ADDRESS=localhost:11051
+```
