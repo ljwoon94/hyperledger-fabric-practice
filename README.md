@@ -1858,7 +1858,7 @@ Ordering Service : 어떤 주문 노드가 네트워크의 주문 서비스를 �
 
  패브릭 네트워크에서 생성되는 첫 번째 채널은 시스템 채널이다. 시스템 채널은 order 서비스를 형성하는 order node 세트와 order 서비스 관리자 역할을 하는 조직 세트를 정의합니다.
  
- 시스템 채널에는 블록 체인 컨소시엄의 구성원 인 조직도 포함된다 . 컨소시엄은 시스템 채널에 속하지만 주문 서비스의 관리자가 아닌 피어 조직의 집합이다. 컨소시엄 구성원은 새 채널을 만들고 다른 컨소시엄 조직을 채널 구성원으로 포함 할 수 있다.
+ 시스템 채널에는 블록 체인 컨소시엄의 구성원인 조직도 포함된다. 컨소시엄은 시스템 채널에 속하지만 주문 서비스의 관리자가 아닌 피어 조직의 집합이다. 컨소시엄 구성원은 새 채널을 만들고 다른 컨소시엄 조직을 채널 구성원으로 포함 할 수 있다.
  
  새로운 주문 서비스를 배포하려면 시스템 채널의 제네시스 블록이 필요하다. 테스트 네트워크 스크립트는 명령 을 실행할 때 이미 시스템 채널 생성 블록을 생성했다 . 제네시스 블록은 단일 주문 노드를 배포하는 데 사용되었으며 블록을 사용하여 시스템 채널을 만들고 네트워크의 주문 서비스를 구성했다. 
  
@@ -1922,6 +1922,10 @@ peer channel create -o localhost:7050  --ordererTLSHostnameOverride orderer.exam
  채널이 생성되면 동료와 함께 채널에 참여할 수 있다. 채널의 구성원 인 조직은 peer channel fetch 명령을 사용하여 순서 지정 서비스에서 채널 생성 블록을 가져올 수 있다. 그런 다음 조직은 제네시스 블록을 사용하여 peer channel join 명령을 사용하여 피어를 채널에 조인 할 수 있다. 피어가 채널에 가입되면 피어는 주문 서비스에서 채널의 다른 블록을 검색하여 블록 체인 원장을 구축한다. 
  이미 peerOrg1 관리자로 CLI를 운영하고 있으므로 Org1 피어를 채널에 가입시켜 보겠다. Org1이 채널 생성 트랜잭션을 제출했기 때문에 파일 시스템에 이미 채널 생성 블록이 있습니다. 아래 명령을 사용하여 Org1 피어를 채널에 가입시킨다.
  
+```
+peer channel join -b ./channel-artifacts/channel1.block
+```
+ 
 ![image](https://user-images.githubusercontent.com/68358404/122170010-0b5f5200-ceb9-11eb-8547-09626e6845dd.png)
 
 peer channel getinfo 명령을 사용하여 피어가 채널에 참여했는지 확인할 수 있다.
@@ -1974,4 +1978,186 @@ peer channel join -b ./channel-artifacts/channel_org2.block
 
 ## 9-7. 앵커 피어 설정
 
+ 조직이 피어를 채널에 가입시킨 후 앵커 피어가 될 피어 중 하나 이상을 선택해야한다. 개인 데이터 및 서비스 검색과 같은 기능을 활용하려면 앵커 피어가 필요하다. 각 조직은 중복성을 위해 채널에 여러 앵커 피어를 설정해야한다.
+ 각 조직의 앵커 피어의 앤드포인트 정보는 채널의 구성에 포함된다. 각 채널 맴버는 채널을 업데이트 함으로써 앵커 피어를 
+지정할 수 있다. 우리는 채널 구성을 업데이트하고 Org1 와 Org2를 위한 앵커피어를 선택하기 위해 configtxlator도구를 사용할 것이다. 앵커 피어를 설정하는 프로세스는 다른 채널 업데이트를 수행하는데 필요한 단계와 유사하며 채널구성을 업데이트 하는 데 사용하는 configtxlator 방법을 알려준다. 로컬 컴퓨터에 jq도구를 설치해야한다.
 
+리눅스 jq 설치
+
+```
+curl -L https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 -o /usr/local/bin/jq
+chmod a+x /usr/local/bin/jq
+jq -V
+```
+
+ 앵커 피어를 Org1로 선택하여 시작합니다. 첫 번째 단계는 명령을 사용하여 가장 최근의 채널 구성 블록을 가져오는 것이다. CLI를 Org1 관리자로 작동하려면 다음 환경 변수를 설정한다.
+ 
+```
+export FABRIC_CFG_PATH=$PWD/../config/
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051 
+```
+
+다음 명령을 사용하여 채널 구성을 가져올 수 있다.
+
+```
+peer channel fetch config channel-artifacts/config_block.pb -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com -c channel1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+가장 최근의 채널 구성 블록은 채널 생성 블록이므로 채널에서 블록 0을 반환하는 명령이 표시
+
+![image](https://user-images.githubusercontent.com/68358404/122313274-e0c0d800-cf50-11eb-880b-e0a0995feceb.png)
+
+채널 구성 블록(channel-artifacts)은 다른 아티팩트와 별도로 업데이트 프로세스를 유지하기위해 폴더 에 저장되었다.
+
+```
+cd channel-artifacts
+```
+
+이제 configtxlator 도구를 사용하여 채널 구성 작업을 시작할 수 있다. 첫 번째 단계는 protobuf의 블록을 읽고 편집 할 수있는 JSON 객체로 디코딩하는 것입니다. 또한 불필요한 블록 데이터를 제거하고 채널 구성만 남긴다.
+
+```
+configtxlator proto_decode --input config_block.pb --type common.Block --output config_block.json
+jq '.data.data[0].payload.data.config' config_block.json > config.json
+```
+
+ 이러한 명령은 채널 구성 블록을 config.json업데이트의 기준으로 사용할 간소화 된 JSON으로 변환한다. 이 파일을 직접 편집하고 싶지 않기 때문에 편집 할 수있는 복사본을 만든다. 향후 단계에서 원래 채널 구성을 사용한다.
+ 
+jq도구를 사용하여 Org1 앵커 피어를 채널 구성에 추가할 수 있다.
+
+```
+jq '.channel_group.groups.Application.groups.Org1MSP.values += {"AnchorPeers":{"mod_policy": "Admins","value":{"anchor_peers": [{"host": "peer0.org1.example.com","port": 7051}]},"version": "0"}}' config_copy.json > modified_config.json
+```
+
+ 이 단계 후에는 modified_config.json파일 에 JSON 형식의 업데이트 된 버전의 채널 구성이 있다. 이제 원래 및 수정 된 채널 구성을 모두 다시 protobuf 형식으로 변환하고 그 차이를 계산할 수 있다.
+ 
+```
+configtxlator proto_encode --input config.json --type common.Config --output config.pb
+configtxlator proto_encode --input modified_config.json --type common.Config --output modified_config.pb
+configtxlator compute_update --channel_id channel1 --original config.pb --updated modified_config.pb --output config_update.pb
+```
+
+channel_update.pb라는 이름의 새 protobuff에는 채널 구성에 적용해야 하는 앵커 피어 업데이트가 포함되어 있다. 우리는 채널 구성 업데이트 트랜잭션을 만들기위해 구성 업데이트를 트랜잭션에 포장할 수 있다.
+
+```
+configtxlator proto_decode --input config_update.pb --type common.ConfigUpdate --output config_update.json
+echo '{"payload":{"header":{"channel_header":{"channel_id":"channel1", "type":2}},"data":{"config_update":'$(cat config_update.json)'}}}' | jq . > config_update_in_envelope.json
+configtxlator proto_encode --input config_update_in_envelope.json --type common.Envelope --output config_update_in_envelope.pb
+```
+
+이제 config_update_in_envelope.pb채널을 업데이트하는 데 사용할 수있는 최종 아티팩트 를 사용할 수 있다. test-network디렉토리로 다시 이동한다.
+
+```
+cd ..
+```
+
+명령에 새 채널 구성을 제공하여 앵커 피어를 추가 할 수 있다. Org1에만 영향을 미치는 채널 구성 섹션을 업데이트하고 있으므로 다른 채널 구성원은 채널 업데이트를 승인할 필요가 없다.
+
+```
+peer channel update -f channel-artifacts/config_update_in_envelope.pb -c channel1 -o localhost:7050  --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122313972-3ba6ff00-cf52-11eb-8468-a936dc15926d.png)
+
+Org2에 대한 앵커 피어를 설정할 수 있다.
+
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051
+```
+
+이제 채널의 두 번째 블록인 최신 채널 구성 블록을 가져온다.
+
+```
+peer channel fetch config channel-artifacts/config_block.pb -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com -c channel1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+channel-artifacts디렉토리로 다시 이동
+
+```
+cd channel-artifacts
+```
+
+다음 구성 블록을 디코딩하고 복사
+
+```
+configtxlator proto_decode --input config_block.pb --type common.Block --output config_block.json
+jq '.data.data[0].payload.data.config' config_block.json > config.json
+cp config.json config_copy.json
+```
+
+채널 구성에서 앵커 피어로 채널에 결합 된 Org2 피어를 추가
+
+```
+jq '.channel_group.groups.Application.groups.Org2MSP.values += {"AnchorPeers":{"mod_policy": "Admins","value":{"anchor_peers": [{"host": "peer0.org2.example.com","port": 9051}]},"version": "0"}}' config_copy.json > modified_config.json
+```
+
+이제 원래 및 업데이트 된 채널 구성을 다시 protobuf 형식으로 변환하고 그 차이를 계산할 수 있다.
+
+```
+configtxlator proto_encode --input config.json --type common.Config --output config.pb
+configtxlator proto_encode --input modified_config.json --type common.Config --output modified_config.pb
+configtxlator compute_update --channel_id channel1 --original config.pb --updated modified_config.pb --output config_update.pb
+```
+
+구성 업데이트를 트랜잭션에 래핑하여 채널 구성 업데이트 트랜잭션을 만든다.
+
+```
+configtxlator proto_decode --input config_update.pb --type common.ConfigUpdate --output config_update.json
+echo '{"payload":{"header":{"channel_header":{"channel_id":"channel1", "type":2}},"data":{"config_update":'$(cat config_update.json)'}}}' | jq . > config_update_in_envelope.json
+configtxlator proto_encode --input config_update_in_envelope.json --type common.Envelope --output config_update_in_envelope.pb
+```
+
+test-network디렉토리로 다시 이동
+
+```
+cd ..
+```
+
+다음 명령을 실행하여 채널을 업데이트하고 Org2 앵커 피어를 설정.
+
+```
+peer channel update -f channel-artifacts/config_update_in_envelope.pb -c channel1 -o localhost:7050  --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122314318-f0412080-cf52-11eb-9e9e-ae4e028188a6.png)
+
+
+채널이 성공적으로 업데이트되었는지 확인
+
+```
+peer channel getinfo -c channel1
+```
+
+채널 생성 블록에 두 개의 채널 구성 블록을 추가하여 채널이 업데이트되었으므로 채널의 높이가 3 개로 늘어났다.
+
+![image](https://user-images.githubusercontent.com/68358404/122314357-00590000-cf53-11eb-96b4-c627ba6b391e.png)
+
+## 9-8. 새 채널에 체인 코드 배포
+
+채널에 체인 코드를 배포하여 채널이 성공적으로 생성되었는지 확인할 수 있다.
+
+```
+./network.sh deployCC -ccn basic -ccp ../asset-transfer-basic/chaincode-go/ -ccl go -c channel1 -cci InitLedger
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122314520-49a94f80-cf53-11eb-8c17-9ecdef57e986.png)
+
+
+질의를 통해 데이터가 추가되었음을 확인할 수 있다.
+
+```
+peer chaincode query -C channel1 -n basic -c '{"Args":["getAllAssets"]}'
+```
+
+쿼리를 실행 한 후 채널 원장에 추가 된 자산이 표시
+
+![image](https://user-images.githubusercontent.com/68358404/122314538-57f76b80-cf53-11eb-9afa-7a58191f4e51.png)
+
+쿼리를 실행 한 후 채널 원장에 추가 된 자산이 표시
