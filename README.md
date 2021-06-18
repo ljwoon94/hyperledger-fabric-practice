@@ -2456,7 +2456,6 @@ configtxlator proto_encode --input config.json --type common.Config --output con
 
 ```
 configtxlator proto_encode --input config.json --type common.Config --output config.pb
-
 ```
 
 
@@ -2535,7 +2534,7 @@ docker logs -f peer0.org1.example.com
 
 ## 10-10. 채널에 Org3 가입
 
-이 시점에서 채널 구성은 새로운 조직인 Org3을 포함하도록 업데이트되었습니다. 즉, 연결된 피어가 이제 channel1에 가입 할 수 있습니다. Org3 관리자로 작동하도록 다음 환경 변수 설정.
+ 채널 구성은 새로운 조직인 Org3을 포함하도록 업데이트되었다. 즉, 연결된 피어가 이제 channel1에 가입 할 수 있습니다. Org3 관리자로 작동하도록 다음 환경 변수 설정.
 
 ```
 export CORE_PEER_TLS_ENABLED=true
@@ -2544,3 +2543,135 @@ export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org3.e
 export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org3.example.com/users/Admin@org3.example.com/msp
 export CORE_PEER_ADDRESS=localhost:11051
 ```
+
+성공적인 채널 업데이트의 결과로 오더 서비스는 Org3가 제네시스 블록을 가져와 채널에 참여할 수 있는지 확인한다. Org3이 채널 구성에 성공적으로 추가되지 않은 경우 주문 서비스는이 요청을 거부한다.
+
+블록 검색 명령어 peer channel fetch
+
+```
+peer channel fetch 0 channel-artifacts/channel1.block -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com -c channel1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122488315-2dbbb180-d018-11eb-913c-6495a0a2dee4.png)
+
+ 채널의 원장에 첫 번째 블록이 필요함을 나타내기 위해 0을 전달하고 있습니다. 제네시스 블록. 단순히 peer channel fetch config 명령을 전달했다면 블록 3을 받았을 것입니다. Org3이 정의된 업데이트된 구성입니다. 그러나 다운 스트림 블록으로 원장을 시작할 수 없습니다. 블록 0으로 시작해야한다.
+ 
+ 성공하면 명령이 제네시스 블록을 channel1.block이라는 파일로 반환했습니다. 이제이 블록을 사용하여 피어를 채널에 연결할 수 있습니다. peer channel join 명령을 실행하고 제네시스 블록을 전달하여 Org3 피어를 채널에 연결합니다.
+
+```
+peer channel join -b channel-artifacts/channel1.block
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122488459-75dad400-d018-11eb-820e-ec97502b25d7.png)
+ 
+## 10-10. 리더 선택 구성
+
+ 이 섹션은 초기 채널 구성이 완료된 후 네트워크에 조직을 추가 할 때 리더 선택 설정을 이해하기위한 참조이다.
+ 새로 추가 된 피어는 주문 서비스에서 블록을 수신 할 수 있도록 다음 구성 중 하나를 가져야합니다.
+ 
+1. 피어가 항상 오더 서비스에서 직접 블록을 수신하도록하려면 피어를 조직 리더로 구성한다.
+ 
+```
+CORE_PEER_GOSSIP_USELEADERELECTION=false
+CORE_PEER_GOSSIP_ORGLEADER=true
+```
+
+2. 궁극적으로 조직 내에서 동적 리더 선택을 활용하려면 리더 선택을 사용하도록 피어를 구성
+
+```
+CORE_PEER_GOSSIP_USELEADERELECTION=true
+CORE_PEER_GOSSIP_ORGLEADER=false
+```
+-tip
+ 새로 추가 된 조직의 동료는 처음에는 구성원보기를 구성 할 수 없기 때문에 각 피어가 자신을 리더로 선포하기 시작하므로이 옵션은 정적 구성과 유사하다. 그러나 채널에 조직을 추가하는 구성 트랜잭션으로 업데이트되면 조직의 활성 리더는 한 명뿐이다. 따라서 결국 조직의 동료가 리더 선택을 활용하도록하려면이 옵션을 활용하는 것이 좋다.
+
+## 10-10. 체인 코드 설치, 정의 및 호출
+
+ channel1 채널에 체인 코드를 설치하고 호출하여 Org3가의 구성원임을 확인할 수 있다. 기존 채널 구성원이 이미 체인 코드 정의를 채널에 커밋 한 경우 새 조직은 체인 코드 정의를 승인하여 체인 코드 사용을 시작할 수 있다.
+ 
+ 체인 코드를 Org3로 설치하기 전에 ./network.sh스크립트를 사용 하여 채널에 기본 체인 코드를 배포 할 수 있다. 새 터미널을 열고 test-network디렉토리로 이동, 그런 다음 test-network스크립트를 사용 하여 기본 체인 코드를 배포 할 수 있다.
+ 
+```
+새 터미널
+cd fabric-samples/test-network
+./network.sh deployCC -ccn basic -ccp ../asset-transfer-basic/chaincode-go/ -ccl go -c channel1
+```
+
+ 체인 코드 정의가 채널에 커밋되면 기본 체인 코드가 초기화되고 초기 데이터를 원장에 저장하기 위해 호출된다. 아래 명령은 우리가 여전히 channel1 채널을 사용하고 있다고 가정한다.
+
+ 체인 코드가 배포 된 후 다음 단계를 사용하여 Org3로 기본 체인 코드를 호출 할 수 있습니다. Org3 관리자로 네트워크와 상호 작용하려면 터미널에 다음 환경 변수를 복사하여 붙여 넣으십시오.
+ 
+```
+export PATH=${PWD}/../bin:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org3MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org3.example.com/peers/peer0.org3.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org3.example.com/users/Admin@org3.example.com/msp
+export CORE_PEER_ADDRESS=localhost:11051
+```
+
+첫 번째 단계는 기본 체인 코드를 패키징한다.
+
+```
+peer lifecycle chaincode package basic.tar.gz --path ../asset-transfer-basic/chaincode-go/ --lang golang --label basic_1
+```
+
+ 이 명령은 Org3 피어에 설치할 수있는 basic.tar.gz라는 체인 코드 패키지를 생성한다. 다음 명령을 실행하여 chaincode 패키지 peer0.org3.example.com을 설치한다.
+ 
+```
+peer lifecycle chaincode install basic.tar.gz
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122489397-8f7d1b00-d01a-11eb-83bf-5fdc3ca4a572.png)
+
+다음 단계는 Basic의 체인 코드 정의를 Org3으로 승인하는 것이다. Org3은 Org1 및 Org2가 승인하고 채널에 커밋한 것과 동일한 정의를 승인해야한다. 체인 코드를 호출하려면 Org3이 체인 코드 정의에 패키지 식별자를 포함해야한다. 피어를 쿼리하여 패키지 식별자를 찾을 수 있다.
+
+```
+peer lifecycle chaincode queryinstalled
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122489359-770d0080-d01a-11eb-8591-a5b4f9096d4a.png)
+
+basic_1:9820659c595e662a849033ca23b4424e87a126e8f40b5f81ace59820b81fe8e7
+
+ 향후 명령에서 패키지 ID가 필요하므로 계속해서 환경 변수로 저장한다. peer lifecycle chaincode queryinstalled 명령이 반환 한 패키지 ID를 아래 명령에 붙여넣는다. 패키지 ID는 모든 사용자에게 동일하지 않을 수 있으므로 콘솔에서 반환 된 패키지 ID를 사용하여이 단계를 완료해야한다.
+ 
+```
+export CC_PACKAGE_ID=basic_1:9820659c595e662a849033ca23b4424e87a126e8f40b5f81ace59820b81fe8e7
+```
+
+다음 명령을 사용하여 Org3의 기본 체인 코드 정의를 승인
+
+```
+peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem --channelID channel1 --name basic --version 1.0 --package-id $CC_PACKAGE_ID --sequence 1
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122489614-09ad9f80-d01b-11eb-8cfb-600a0d62726c.png)
+
+peer lifecycle chaincode querycommitted 명령을 사용하여 승인 한 체인 코드 정의가 이미 채널에 커밋되었는지 확인
+
+```
+peer lifecycle chaincode querycommitted --channelID channel1 --name basic --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122489638-1631f800-d01b-11eb-8bdb-ea46957a75e5.png)
+
+ Org3은 채널에 커밋 된 체인 코드 정의를 승인 한 후 기본 체인 코드를 사용할 수 있습니다. 체인 코드 정의는 채널에있는 대부분의 조직이 트랜잭션을 보증해야하는 기본 보증 정책을 사용합니다. 이는 조직이 채널에 추가되거나 채널에서 제거되면 보증 정책이 자동으로 업데이트됨을 의미합니다. 이전에는 Org1 및 Org2의 보증이 필요했습니다 (2 개 중 2 개). 이제 Org1, Org2 및 Org3 (3 개 중 2 개) 중 2 개 조직의 보증이 필요합니다.
+
+일부 샘플 자산으로 원장을 채 웁니다. 보증 정책이 충족되도록 Org2 피어와 새 Org3 피어로부터 보증을받습니다.
+
+-----------------------------------------
+
+에러 발생시
+
+![image](https://user-images.githubusercontent.com/68358404/122491681-657a2780-d01f-11eb-86cf-b7dfce910553.png)
+
+CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=${COMPOSE_PROJECT_NAME}_test 를
+CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=docker_test로 변경
+
+![image](https://user-images.githubusercontent.com/68358404/122491777-9195a880-d01f-11eb-8626-432cf41ef2e9.png)
+
+변경 후 다시 네트워크 실행
+
+-------------------------------------------
