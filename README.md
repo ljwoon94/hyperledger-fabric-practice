@@ -2564,7 +2564,7 @@ peer channel join -b channel-artifacts/channel1.block
 
 ![image](https://user-images.githubusercontent.com/68358404/122488459-75dad400-d018-11eb-820e-ec97502b25d7.png)
  
-## 10-10. 리더 선택 구성
+## 10-11. 리더 선택 구성
 
  이 섹션은 초기 채널 구성이 완료된 후 네트워크에 조직을 추가 할 때 리더 선택 설정을 이해하기위한 참조이다.
  새로 추가 된 피어는 주문 서비스에서 블록을 수신 할 수 있도록 다음 구성 중 하나를 가져야합니다.
@@ -2585,7 +2585,7 @@ CORE_PEER_GOSSIP_ORGLEADER=false
 -tip
  새로 추가 된 조직의 동료는 처음에는 구성원보기를 구성 할 수 없기 때문에 각 피어가 자신을 리더로 선포하기 시작하므로이 옵션은 정적 구성과 유사하다. 그러나 채널에 조직을 추가하는 구성 트랜잭션으로 업데이트되면 조직의 활성 리더는 한 명뿐이다. 따라서 결국 조직의 동료가 리더 선택을 활용하도록하려면이 옵션을 활용하는 것이 좋다.
 
-## 10-10. 체인 코드 설치, 정의 및 호출
+## 10-12. 체인 코드 설치, 정의 및 호출
 
  channel1 채널에 체인 코드를 설치하고 호출하여 Org3가의 구성원임을 확인할 수 있다. 기존 채널 구성원이 이미 체인 코드 정의를 채널에 커밋 한 경우 새 조직은 체인 코드 정의를 승인하여 체인 코드 사용을 시작할 수 있다.
  
@@ -2661,6 +2661,13 @@ peer lifecycle chaincode querycommitted --channelID channel1 --name basic --cafi
 
 일부 샘플 자산으로 원장을 채 웁니다. 보증 정책이 충족되도록 Org2 피어와 새 Org3 피어로부터 보증을받습니다.
 
+```
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C channel1 -n basic --peerAddresses localhost:9051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt --peerAddresses localhost:11051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org3.example.com/peers/peer0.org3.example.com/tls/ca.crt -c '{"function":"InitLedger","Args":[]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122493158-27323780-d022-11eb-96a1-52e4d4e381c1.png)
+
+
 -----------------------------------------
 
 에러 발생시
@@ -2675,3 +2682,22 @@ CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=docker_test로 변경
 변경 후 다시 네트워크 실행
 
 -------------------------------------------
+
+체인 코드를 쿼리하여 Org3 피어가 데이터를 커밋했는지 확인할 수 있다.
+
+```
+peer chaincode query -C channel1 -n basic -c '{"Args":["GetAllAssets"]}'
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122493205-3d3ff800-d022-11eb-991e-ba915e632569.png)
+
+## 10-13. 결론
+
+ 채널 구성 업데이트 프로세스는 실제로 상당히 복잡하지만 다양한 단계에 대한 논리적 방법이 있다. 최종 게임은 protobuf 바이너리 형식으로 표현 된 델타 트랜잭션 객체를 형성 한 다음 채널 구성 업데이트 트랜잭션이 채널의 수정 정책을 이행하도록 필요한 수의 관리자 서명을 획득하는 것이다.
+
+네트워크 끄기
+
+```
+cd fabric-samples/test-network
+./network.sh down
+```
