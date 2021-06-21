@@ -2913,3 +2913,592 @@ peer channel update -f config_update_in_envelope.pb -c $CH_NAME -o $ORDERER_CONT
 
 구성이 원장에 추가되면 구성을 가져 와서 JSON으로 변환하여 모든 것이 올바르게 추가되었는지 확인하는 것이 가장 좋다. 이것은 또한 최신 구성의 유용한 복사본 역할을합니다.
 
+## 12-1. 첫번째 체인 코드 작성
+
+Chaincode는 무엇인가?
+Chaincode는 Go, Node.js 또는 Java로 작성된 프로그램으로 규정된 인터페이스를 구현한다. Chaincode는 피어와는 별도의 프로세스로 실행되며 애플리케이션에서 제출 한 트랜잭션을 통해 원장 상태를 초기화하고 관리한다.
+
+체인 코드는 일반적으로 네트워크 구성원이 동의 한 비즈니스 로직을 처리하므로 "스마트 계약"과 유사하다. 체인 코드를 호출하여 제안 트랜잭션에서 원장을 업데이트하거나 쿼리 할 수 있다. 적절한 권한이 주어지면 체인 코드는 동일한 채널이나 다른 채널에서 다른 체인 코드를 호출하여 상태에 액세스 할 수 있다. 호출된 체인 코드가 호출 체인 코드와 다른 채널에 있는 경우 읽기 쿼리만 허용된다. 즉, 다른 채널에서 호출 된 체인 코드는 쿼리 일 뿐이며 후속 커밋 단계에서 상태 유효성 검사에 참여하지 않는다.
+
+다음 섹션에서는 애플리케이션 개발자의 눈을 통해 체인 코드를 살펴볼 것이다. 자산 전송 체인 코드 샘플 연습과 Fabric Contract API에서 각 방법의 목적을 제시한다.
+
+Fabric Contract API
+fabric-contract-api는 애플리케이션 개발자가 스마트 계약을 구현할 수 있도록 고급 API 인 계약 인터페이스를 제공한다. Hyperledger Fabric 내에서 스마트 계약은 Chaincode라고도한다. 이 API로 작업하면 비즈니스 로직 작성에 대한 높은 수준의 진입 점이 제공된다. 다양한 언어에 대한 Fabric Contract API 문서는 아래 링크에서 찾을 수 있다.
+
+GO
+Node.js
+JAVA
+계약 API를 사용할 때 호출되는 각 체인 코드 함수는 트랜잭션 컨텍스트 "ctx"를 전달하며 여기에서 원장에 액세스하는 함수가있는 체인 코드 스텁 (GetStub ())을 가져올 수 있다.
+
+## 12-2. 코드 위치 선택
+Go에서 프로그래밍을하지 않았다면 Go가 설치되어 있고 시스템이 올바르게 구성되었는지 확인하는 것이 좋다. 모듈을 지원하는 버전을 사용하고 있다고 가정한다.
+
+이제 체인 코드 애플리케이션을위한 디렉토리를 생성한다.
+
+간단하게하기 위해 다음 명령을 사용한다.
+
+```
+mkdir atcc && cd atcc
+```
+
+이제 코드로 채울 모듈과 소스 파일을 만든다.
+
+```
+go mod init atcc
+touch atcc.go
+```
+
+## 12-3. 정비
+먼저 정비부터 시작한다. 모든 체인 코드와 마찬가지로 fabric-contract-api 인터페이스를 구현하므로 체인 코드에 필요한 종속성에 대한 Go import 문을 추가한다. 패브릭 계약 API 패키지를 가져 와서 SmartContract를 정의한다.
+
+atcc.go 
+
+```
+package main
+
+import (
+  "fmt"
+  "log"
+  "github.com/hyperledger/fabric-contract-api-go/contractapi"
+)
+
+// SmartContract provides functions for managing an Asset
+   type SmartContract struct {
+   contractapi.Contract
+   }
+```
+
+다음으로, 원장의 단순 자산을 나타내는 구조체 자산을 추가한다. 자산을 원장에 저장된 JSON으로 마샬링하는 데 사용되는 JSON 주석에 유의하십시오.
+
+```
+type Asset struct {
+    ID 문자열`json : "ID"`
+    색상 문자열`json : "color"`
+    Size int`json : "size"`
+    소유자 문자열`json : "owner"`
+    AppraisedValue int`json : "appraisedValue"`
+   }
+```
+
+체인 코드 초기화
+다음으로 InitLedger 함수를 구현하여 원장에 몇 가지 초기 데이터를 채운다.
+
+```
+// InitLedger adds a base set of assets to the ledger
+   func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
+      assets := []Asset{
+        {ID: "asset1", Color: "blue", Size: 5, Owner: "Tomoko", AppraisedValue: 300},
+        {ID: "asset2", Color: "red", Size: 5, Owner: "Brad", AppraisedValue: 400},
+        {ID: "asset3", Color: "green", Size: 10, Owner: "Jin Soo", AppraisedValue: 500},
+        {ID: "asset4", Color: "yellow", Size: 10, Owner: "Max", AppraisedValue: 600},
+        {ID: "asset5", Color: "black", Size: 15, Owner: "Adriana", AppraisedValue: 700},
+        {ID: "asset6", Color: "white", Size: 15, Owner: "Michel", AppraisedValue: 800},
+      }
+
+   for _, asset := range assets {
+      assetJSON, err := json.Marshal(asset)
+      if err != nil {
+        return err
+      }
+
+      err = ctx.GetStub().PutState(asset.ID, assetJSON)
+      if err != nil {
+        return fmt.Errorf("failed to put to world state. %v", err)
+      }
+    }
+
+    return nil
+  }
+```
+
+음으로 아직 존재하지 않는 원장에 자산을 생성하는 함수를 작성한다. 체인 코드를 작성할 때 아래의 CreateAsset 함수에 설명 된 것처럼 작업을 수행하기 전에 원장에 무언가가 있는지 확인하는 것이 좋다.
+
+```
+ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
+    exists, err := s.AssetExists(ctx, id)
+    if err != nil {
+      return err
+    }
+    if exists {
+      return fmt.Errorf("the asset %s already exists", id)
+    }
+
+    asset := Asset{
+      ID:             id,
+      Color:          color,
+      Size:           size,
+      Owner:          owner,
+      AppraisedValue: appraisedValue,
+    }
+    assetJSON, err := json.Marshal(asset)
+    if err != nil {
+      return err
+    }
+
+    return ctx.GetStub().PutState(id, assetJSON)
+  }
+```
+
+이제 원장에 초기 자산을 채우고 자산을 만들었으므로 이제 원장에서 자산을 읽을 수있는 ReadAsset 함수를 작성해 보겠다.
+
+```
+func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, id string) (*Asset, error) {
+    assetJSON, err := ctx.GetStub().GetState(id)
+    if err != nil {
+      return nil, fmt.Errorf("failed to read from world state: %v", err)
+    }
+    if assetJSON == nil {
+      return nil, fmt.Errorf("the asset %s does not exist", id)
+    }
+
+    var asset Asset
+    err = json.Unmarshal(assetJSON, &asset)
+    if err != nil {
+      return nil, err
+    }
+
+    return &asset, nil
+  }
+```
+
+이제 원장에 상호 작용할 수있는 자산이 있으므로 변경할 수있는 자산의 속성을 업데이트 할 수있는 체인 코드 함수 UpdateAsset을 작성해 보겠다.
+
+```
+// UpdateAsset updates an existing asset in the world state with provided parameters.
+   func (s *SmartContract) UpdateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
+      exists, err := s.AssetExists(ctx, id)
+      if err != nil {
+        return err
+      }
+      if !exists {
+        return fmt.Errorf("the asset %s does not exist", id)
+      }
+
+      // overwriting original asset with new asset
+      asset := Asset{
+        ID:             id,
+        Color:          color,
+        Size:           size,
+        Owner:          owner,
+        AppraisedValue: appraisedValue,
+      }
+      assetJSON, err := json.Marshal(asset)
+      if err != nil {
+        return err
+      }
+
+      return ctx.GetStub().PutState(id, assetJSON)
+  }
+```
+
+원장에서 자산을 삭제하는 기능이 필요한 경우가있을 수 있으므로 해당 요구 사항을 처리하는 DeleteAsset 함수를 작성해 보겠다.
+
+```
+// DeleteAsset deletes an given asset from the world state.
+   func (s *SmartContract) DeleteAsset(ctx contractapi.TransactionContextInterface, id string) error {
+      exists, err := s.AssetExists(ctx, id)
+      if err != nil {
+        return err
+      }
+      if !exists {
+        return fmt.Errorf("the asset %s does not exist", id)
+      }
+
+      return ctx.GetStub().DelState(id)
+   }
+```
+
+앞서 언급 한 것은 자산에 대한 조치를 취하기 전에 자산이 존재하는지 확인하는 것이 좋다. 따라서 해당 요구 사항을 구현하기 위해 AssetExists라는 함수를 작성해 보겠다.
+
+```
+// AssetExists returns true when asset with given ID exists in world state
+   func (s *SmartContract) AssetExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
+      assetJSON, err := ctx.GetStub().GetState(id)
+      if err != nil {
+        return false, fmt.Errorf("failed to read from world state: %v", err)
+      }
+
+      return assetJSON != nil, nil
+    }
+ ```
+ 
+ 다음으로 한 소유자에서 다른 소유자로 자산을 이전 할 수있는 TransferAsset이라는 함수를 작성한다.
+ 
+ ```
+    func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterface, id string, newOwner string) error {
+      asset, err := s.ReadAsset(ctx, id)
+      if err != nil {
+        return err
+      }
+
+      asset.Owner = newOwner
+      assetJSON, err := json.Marshal(asset)
+      if err != nil {
+        return err
+      }
+
+      return ctx.GetStub().PutState(id, assetJSON)
+    }
+ ```
+ 
+ 원장 쿼리를 통해 원장의 모든 자산을 반환 할 수있는 GetAllAssets를 호출 할 함수를 작성한다.
+ 
+ ```
+ func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface) ([]*Asset, error) {
+// range query with empty string for startKey and endKey does an
+// open-ended query of all assets in the chaincode namespace.
+    resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
+    if err != nil {
+      return nil, err
+    }
+    defer resultsIterator.Close()
+
+    var assets []*Asset
+    for resultsIterator.HasNext() {
+      queryResponse, err := resultsIterator.Next()
+      if err != nil {
+        return nil, err
+      }
+
+      var asset Asset
+      err = json.Unmarshal(queryResponse.Value, &asset)
+      if err != nil {
+        return nil, err
+      }
+      assets = append(assets, &asset)
+    }
+
+    return assets, nil
+  }
+ ```
+ 
+ 이 코드를 전부 합치고, main 함수 추가 atcc.go
+ 
+ ```
+ package main
+
+import (
+  "encoding/json"
+  "fmt"
+  "log"
+
+  "github.com/hyperledger/fabric-contract-api-go/contractapi"
+)
+
+// SmartContract provides functions for managing an Asset
+   type SmartContract struct {
+      contractapi.Contract
+    }
+
+// Asset describes basic details of what makes up a simple asset
+   type Asset struct {
+      ID             string `json:"ID"`
+      Color          string `json:"color"`
+      Size           int    `json:"size"`
+      Owner          string `json:"owner"`
+      AppraisedValue int    `json:"appraisedValue"`
+    }
+
+// InitLedger adds a base set of assets to the ledger
+   func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
+    assets := []Asset{
+      {ID: "asset1", Color: "blue", Size: 5, Owner: "Tomoko", AppraisedValue: 300},
+      {ID: "asset2", Color: "red", Size: 5, Owner: "Brad", AppraisedValue: 400},
+      {ID: "asset3", Color: "green", Size: 10, Owner: "Jin Soo", AppraisedValue: 500},
+      {ID: "asset4", Color: "yellow", Size: 10, Owner: "Max", AppraisedValue: 600},
+      {ID: "asset5", Color: "black", Size: 15, Owner: "Adriana", AppraisedValue: 700},
+      {ID: "asset6", Color: "white", Size: 15, Owner: "Michel", AppraisedValue: 800},
+    }
+
+    for _, asset := range assets {
+      assetJSON, err := json.Marshal(asset)
+      if err != nil {
+        return err
+      }
+
+      err = ctx.GetStub().PutState(asset.ID, assetJSON)
+      if err != nil {
+        return fmt.Errorf("failed to put to world state. %v", err)
+      }
+    }
+
+    return nil
+  }
+
+// CreateAsset issues a new asset to the world state with given details.
+   func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
+    exists, err := s.AssetExists(ctx, id)
+    if err != nil {
+      return err
+    }
+    if exists {
+      return fmt.Errorf("the asset %s already exists", id)
+    }
+
+    asset := Asset{
+      ID:             id,
+      Color:          color,
+      Size:           size,
+      Owner:          owner,
+      AppraisedValue: appraisedValue,
+    }
+    assetJSON, err := json.Marshal(asset)
+    if err != nil {
+      return err
+    }
+
+    return ctx.GetStub().PutState(id, assetJSON)
+  }
+
+// ReadAsset returns the asset stored in the world state with given id.
+   func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, id string) (*Asset, error) {
+    assetJSON, err := ctx.GetStub().GetState(id)
+    if err != nil {
+      return nil, fmt.Errorf("failed to read from world state: %v", err)
+    }
+    if assetJSON == nil {
+      return nil, fmt.Errorf("the asset %s does not exist", id)
+    }
+
+    var asset Asset
+    err = json.Unmarshal(assetJSON, &asset)
+    if err != nil {
+      return nil, err
+    }
+
+    return &asset, nil
+  }
+
+// UpdateAsset updates an existing asset in the world state with provided parameters.
+   func (s *SmartContract) UpdateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
+    exists, err := s.AssetExists(ctx, id)
+    if err != nil {
+      return err
+    }
+    if !exists {
+      return fmt.Errorf("the asset %s does not exist", id)
+    }
+
+    // overwriting original asset with new asset
+    asset := Asset{
+      ID:             id,
+      Color:          color,
+      Size:           size,
+      Owner:          owner,
+      AppraisedValue: appraisedValue,
+    }
+    assetJSON, err := json.Marshal(asset)
+    if err != nil {
+      return err
+    }
+
+    return ctx.GetStub().PutState(id, assetJSON)
+  }
+
+  // DeleteAsset deletes an given asset from the world state.
+  func (s *SmartContract) DeleteAsset(ctx contractapi.TransactionContextInterface, id string) error {
+    exists, err := s.AssetExists(ctx, id)
+    if err != nil {
+      return err
+    }
+    if !exists {
+      return fmt.Errorf("the asset %s does not exist", id)
+    }
+
+    return ctx.GetStub().DelState(id)
+  }
+
+// AssetExists returns true when asset with given ID exists in world state
+   func (s *SmartContract) AssetExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
+    assetJSON, err := ctx.GetStub().GetState(id)
+    if err != nil {
+      return false, fmt.Errorf("failed to read from world state: %v", err)
+    }
+
+    return assetJSON != nil, nil
+  }
+
+// TransferAsset updates the owner field of asset with given id in world state.
+   func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterface, id string, newOwner string) error {
+    asset, err := s.ReadAsset(ctx, id)
+    if err != nil {
+      return err
+    }
+
+    asset.Owner = newOwner
+    assetJSON, err := json.Marshal(asset)
+    if err != nil {
+      return err
+    }
+
+    return ctx.GetStub().PutState(id, assetJSON)
+  }
+
+// GetAllAssets returns all assets found in world state
+   func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface) ([]*Asset, error) {
+// range query with empty string for startKey and endKey does an
+// open-ended query of all assets in the chaincode namespace.
+    resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
+    if err != nil {
+      return nil, err
+    }
+    defer resultsIterator.Close()
+
+    var assets []*Asset
+    for resultsIterator.HasNext() {
+      queryResponse, err := resultsIterator.Next()
+      if err != nil {
+        return nil, err
+      }
+
+      var asset Asset
+      err = json.Unmarshal(queryResponse.Value, &asset)
+      if err != nil {
+        return nil, err
+      }
+      assets = append(assets, &asset)
+    }
+
+    return assets, nil
+  }
+
+  func main() {
+    assetChaincode, err := contractapi.NewChaincode(&SmartContract{})
+    if err != nil {
+      log.Panicf("Error creating asset-transfer-basic chaincode: %v", err)
+    }
+
+    if err := assetChaincode.Start(); err != nil {
+      log.Panicf("Error starting asset-transfer-basic chaincode: %v", err)
+    }
+  }
+ ```
+ 
+## 12-4. Go로 작성된 체인 코드에 대한 외부 종속성 관리
+Go 체인 코드는 표준 라이브러리의 일부가 아닌 Go 패키지 (체인 코드 shim과 같은)에 의존한다. 이러한 패키지의 소스는 피어에 설치 될 때 체인 코드 패키지에 포함되어야한다. 체인 코드를 모듈로 구성한 경우이를 수행하는 가장 쉬운 방법은 체인 코드를 패키징하기 전에 종속성을 "공급"하는 것이다.
+
+```
+go mod tidy
+go mod vendor
+```
+
+## 12-5. chaincode 실행
+
+다시 test-network로 가서 만든 체인코드 실행
+
+```
+cd fabric-samples/test-network
+```
+
+체인코드 실행에 필요한 환경변수 설정
+
+```
+export PATH=${PWD}/../bin:$PATH
+export FABRIC_CFG_PATH=$PWD/../config/
+```
+
+체인코드 패키지 생성
+
+```
+peer lifecycle chaincode package asset.tar.gz --path ./atcc --lang golang --label asset_1.0
+```
+
+체인코드 패키지 조직에 설치
+조직1에 설치하기 위해 환경변수 설정
+
+```
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+체인 코드 설치
+```
+peer lifecycle chaincode install asset.tar.gz
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122712641-340f8f00-d29f-11eb-93ac-c07245f571a9.png)
+
+체인코드 조직 2에다 설치하기 위해 환경변수 설정
+
+```
+export CORE_PEER_LOCALMSPID="Org2MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+export CORE_PEER_ADDRESS=localhost:9051
+```
+
+체인 코드 설치
+
+```
+peer lifecycle chaincode install asset.tar.gz
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122712809-8cdf2780-d29f-11eb-816f-9d50f84c5159.png)
+
+체인코드 조직에 정의 승인
+
+패키지 ID 검색
+
+```
+peer lifecycle chaincode queryinstalled
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122712861-a97b5f80-d29f-11eb-9aa4-6b76704aca54.png)
+
+패키지 ID 환경변수에 저장
+
+```
+export CC_PACKAGE_ID=asset_1.0:a65d95a138413dd0d9da12090a050da45a1605184b5bf19d241d6eb5cb710709
+```
+
+ peer lifecycle chaincode acceptformyorg 명령을 사용하여 체인 코드 정의를 승인
+
+```
+peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name asset --version 1.0 --package-id $CC_PACKAGE_ID --sequence 1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122713007-f65f3600-d29f-11eb-9e56-d583dac92690.png)
+
+체인코드 정의를 조직1로 승인
+
+```
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_MSPCONFIGPATH=${PWD}/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_ADDRESS=localhost:7051
+```
+
+이제 체인 코드 정의를 조직1로 승인 가능
+
+```
+peer lifecycle chaincode approveformyorg -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name asset --version 1.0 --package-id $CC_PACKAGE_ID --sequence 1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+체인 코드 정의를 채널에 커밋
+
+```
+peer lifecycle chaincode checkcommitreadiness --channelID mychannel --name asset --version 1.0 --sequence 1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem --output json
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122713243-5c4bbd80-d2a0-11eb-969c-f09b2640c942.png)
+
+```
+peer lifecycle chaincode commit -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name basic --version 1.0 --sequence 1 --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses localhost:9051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+```
+
+![image](https://user-images.githubusercontent.com/68358404/122713353-856c4e00-d2a0-11eb-8b81-2b3a7a97656c.png)
+
+체인 코드 정의가 채널에 커밋되었는지 확인
+
+```
+peer lifecycle chaincode querycommitted --channelID mychannel --name asset --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+```
+
+확인
+
+```
+peer chaincode query -C mychannel -n asset -c '{"Args":["GetAllAssets"]}'
+```
